@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+venv/
+*.log
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment
+# Exclude .env but keep .env.example
+.env
+!.env.example

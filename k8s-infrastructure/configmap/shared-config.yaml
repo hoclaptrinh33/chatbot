@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airc-shared-config
+  namespace: airc-chatbot
+data:
+  # MongoDB Configuration
+  MONGODB_URL: "mongodb://mongodb:27017"
+  
+  # Redis Configuration  
+  REDIS_URL: "redis://redis:6379/0"
+  
+  # Qdrant Configuration
+  QDRANT_URL: "http://qdrant:6333"
+  
+  # Service URLs (internal K8s DNS)
+  AUTH_SERVICE_URL: "http://auth-service:8001"
+  CORE_SERVICE_URL: "http://core-service:8000"
+  
+  # Debug mode (set to False in production)
+  DEBUG: "False"
+  
+  # CUDA disabled for CPU-only deployment
+  CUDA_VISIBLE_DEVICES: "-1"

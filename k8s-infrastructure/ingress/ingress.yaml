@@ -1,0 +1,58 @@
+﻿# Ingress for AIRC Chatbot - Nginx Ingress Controller
+# Domain: ragairc.neovort.shop
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: airc-chatbot-ingress
+  namespace: airc-chatbot
+  annotations:
+    # File upload limits
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    # Timeouts for large file uploads
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://ragairc.neovort.shop"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ragairc.neovort.shop
+    http:
+      paths:
+      # Auth Service: /api/auth/* -> auth-service:8001/api/auth/*
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 8001
+      # RBAC Service: /api/rbac/* -> auth-service:8001/api/rbac/*
+      - path: /api/rbac
+        pathType: Prefix
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 8001
+      # Core Service: /api/v1/* -> core-service:8000/api/v1/*
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: core-service
+            port:
+              number: 8000
+      # UI Service: /* -> ui-service:3000/*
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ui-service
+            port:
+              number: 3000

@@ -1,0 +1,10 @@
+# GKE Managed Certificate cho HTTPS
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: airc-chatbot-cert
+  namespace: airc-chatbot
+spec:
+  domains:
+    - chatbot.neovort.shop
+    - api.chatbot.neovort.shop

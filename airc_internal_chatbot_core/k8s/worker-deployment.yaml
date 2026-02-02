@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-service
+  namespace: airc-chatbot
+  labels:
+    app: worker-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-service
+  template:
+    metadata:
+      labels:
+        app: worker-service
+        tier: backend
+    spec:
+      imagePullSecrets:
+      - name: registry-secret
+      containers:
+        - name: worker-service
+          image: registry.neovort.shop/airc-core-service:latest
+          imagePullPolicy: Always
+          # Override command để chạy worker
+          command: ["python", "worker.py"]
+          envFrom:
+            - configMapRef:
+                name: core-service-config
+            - secretRef:
+                name: airc-shared-secrets
+          env:
+            - name: MONGODB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: MONGODB_URL
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: REDIS_URL
+            - name: QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: QDRANT_URL
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: core-uploads-pvc

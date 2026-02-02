@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: core-service-config
+  namespace: airc-chatbot
+data:
+  # Database name riêng cho Core service
+  MONGODB_DB_NAME: "airc_chatbot"
+  
+  # Debug mode
+  DEBUG: "False"
+  
+  # CUDA disabled for CPU-only
+  CUDA_VISIBLE_DEVICES: "-1"
+  
+  # CORS Configuration
+  ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001,https://ragairc.neovort.shop"

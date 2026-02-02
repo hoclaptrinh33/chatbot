@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-service
+  namespace: airc-chatbot
+  labels:
+    app: core-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: core-service
+  template:
+    metadata:
+      labels:
+        app: core-service
+        tier: backend
+    spec:
+      imagePullSecrets:
+      - name: registry-secret
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command: ['sh', '-c', 'chown -R 1000:1000 /app/uploads /app/faiss_indexes && chmod -R 755 /app/uploads /app/faiss_indexes']
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: faiss-indexes
+              mountPath: /app/faiss_indexes
+      containers:
+        - name: core-service
+          image: registry.neovort.shop/airc-core-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: core-service-config
+            - secretRef:
+                name: airc-shared-secrets
+          env:
+            - name: MONGODB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: MONGODB_URL
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: REDIS_URL
+            - name: QDRANT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: QDRANT_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: airc-shared-config
+                  key: AUTH_SERVICE_URL
+          volumeMounts:
+            - name: uploads
+              mountPath: /app/uploads
+            - name: faiss-indexes
+              mountPath: /app/faiss_indexes
+          resources:
+            requests:
+              memory: "1536Mi"
+              cpu: "300m"
+            limits:
+              memory: "3Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 180
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 180
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: core-uploads-pvc
+        - name: faiss-indexes
+          persistentVolumeClaim:
+            claimName: core-faiss-pvc

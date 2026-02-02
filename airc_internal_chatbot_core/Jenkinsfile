@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    environment {
+        REGISTRY = 'registry.neovort.shop'
+        IMAGE_NAME = 'airc-core-service'
+        GKE_PROJECT = 'symbolic-bit-482207-a3'
+        GKE_CLUSTER = 'hqb-cluster-1'
+        GKE_ZONE = 'asia-northeast1-c'
+        NAMESPACE = 'airc-chatbot'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def imageTag = "${env.REGISTRY}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                    def latestTag = "${env.REGISTRY}/${env.IMAGE_NAME}:latest"
+
+                    sh """
+                        docker build -t ${imageTag} -t ${latestTag} .
+                    """
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                // Registry không có authentication
+                sh """
+                    docker push ${env.REGISTRY}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}
+                    docker push ${env.REGISTRY}/${env.IMAGE_NAME}:latest
+                """
+            }
+        }
+
+        stage('Deploy Core Service') {
+            steps {
+                withCredentials([file(credentialsId: 'gke-service-account', variable: 'GKE_KEY')]) {
+                    sh """
+                        # Authenticate with GKE
+                        gcloud auth activate-service-account --key-file=\$GKE_KEY
+                        gcloud container clusters get-credentials ${env.GKE_CLUSTER} --zone ${env.GKE_ZONE} --project ${env.GKE_PROJECT}
+
+                        # Update image tag
+                        cd k8s
+                        kustomize edit set image ${env.REGISTRY}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}
+
+                        # Apply manifests
+                        kubectl apply -k .
+
+                        # Wait for core-service rollout
+                        kubectl rollout status deployment/core-service -n ${env.NAMESPACE} --timeout=300s
+
+                        # Wait for worker-service rollout
+                        kubectl rollout status deployment/worker-service -n ${env.NAMESPACE} --timeout=300s
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh """
+                docker rmi ${env.REGISTRY}/${env.IMAGE_NAME}:${env.BUILD_NUMBER} || true
+                docker rmi ${env.REGISTRY}/${env.IMAGE_NAME}:latest || true
+            """
+        }
+        success {
+            echo 'Core Service and Worker deployed successfully!'
+        }
+        failure {
+            echo 'Deployment failed!'
+        }
+    }
+}

@@ -1,0 +1,125 @@
+# ========================
+# AIRC Internal Chatbot - Root .gitignore
+# ========================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+.nyc_output/
+
+# Build outputs
+*.egg-info/
+dist/
+build/
+
+# Docker
+*.tar
+
+# Kubernetes secrets (never commit)
+k8s-infrastructure/secrets/*.yaml
+!k8s-infrastructure/secrets/*.example.yaml
+
+# Uploads and data (local development)
+uploads/
+faiss_indexes/
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+
+# Compiled files
+*.pyc
+*.pyo
+*.class
+
+# Package locks (optional - uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+
+# Misc
+.vercel
+*.pem
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Lint/Debug outputs (generated files)
+*_output.txt
+*_lint.txt
+full_lint.txt
+lint_output.txt
+tsc-errors.txt
+
+# Test results
+*.results.json
+test_*.json
+
+# Model files (large)
+*.bin
+*.pt
+*.onnx

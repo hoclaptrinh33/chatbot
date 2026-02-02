@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-service-config
+  namespace: airc-chatbot
+data:
+  # Database name riêng cho Auth service
+  MONGODB_DB_NAME: "airc_auth_db"
+  
+  # JWT Configuration
+  JWT_EXPIRE_MINUTES: "1440"
+  
+  # Debug mode
+  DEBUG: "False"
+  
+  # CORS Configuration
+  ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001,https://ragairc.neovort.shop"
