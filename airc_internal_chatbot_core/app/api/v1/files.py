@@ -33,13 +33,13 @@ async def upload_file(
     Upload file lên Local Storage và tạo File record
     
     - **file**: Binary file (PDF, DOCX, TXT, ...)
-    - Chỉ Admin/Teacher được upload
+    - Chỉ Admin/Employee được upload
     """
     try:
         # Check permission
         user_role = current_user.role
-        if user_role not in ["admin", "teacher"]:
-            raise HTTPException(status_code=403, detail="Permission denied: Only admin/teacher can upload files")
+        if user_role not in ["admin", "employee"]:
+            raise HTTPException(status_code=403, detail="Permission denied: Only admin/employee can upload files")
         
         # Validate file
         if not file.filename:

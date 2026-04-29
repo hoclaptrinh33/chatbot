@@ -24,7 +24,7 @@ class JWTService:
     
     Custom Claims:
     - email: Email của user
-    - role: Role của user (admin, teacher, student)
+    - role: Role của user (admin, employee, intern_guest)
     """
     
     @staticmethod

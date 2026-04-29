@@ -118,9 +118,9 @@ def require_role(allowed_roles: List[UserRole]) -> Callable:
     Dependency factory để check role
     
     Usage:
-        @router.get("/teachers-only")
-        async def teachers_only(
-            user: User = Depends(require_role([UserRole.ADMIN, UserRole.TEACHER]))
+        @router.get("/employees-only")
+        async def employees_only(
+            user: User = Depends(require_role([UserRole.ADMIN, UserRole.EMPLOYEE]))
         ):
             ...
     """
@@ -150,16 +150,16 @@ async def get_admin_user(
     return current_user
 
 
-async def get_teacher_or_admin(
+async def get_employee_or_admin(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
     """
-    Dependency cho teacher hoặc admin endpoints
+    Dependency cho employee hoặc admin endpoints
     """
-    if current_user.role not in [UserRole.ADMIN, UserRole.TEACHER]:
+    if current_user.role not in [UserRole.ADMIN, UserRole.EMPLOYEE]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Teacher or Admin access required"
+            detail="Employee or Admin access required"
         )
     return current_user
 

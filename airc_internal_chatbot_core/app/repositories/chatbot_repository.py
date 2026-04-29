@@ -140,7 +140,7 @@ class ChatbotRepository(BaseRepository):
         """
         Lấy danh sách roles đã được gán chatbot
         
-        Logic: Mỗi role (student, teacher) chỉ được gán 1 chatbot.
+        Logic: Mỗi role (intern_guest, employee) chỉ được gán 1 chatbot.
         Admin là ngoại lệ - có thể dùng nhiều chatbot.
         
         Args:

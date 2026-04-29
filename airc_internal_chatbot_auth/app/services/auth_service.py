@@ -129,9 +129,9 @@ class AuthService:
         # User không có field 'role' trực tiếp, phải query từ user_roles
         user_role_code = await self._get_user_role(user["id"])
         if not user_role_code:
-            # Fallback: nếu không tìm thấy role, assign student role
-            logger.warning(f"User {email} has no role assigned, defaulting to 'student'")
-            user_role_code = "student"
+            # Fallback: nếu không tìm thấy role, assign intern_guest role
+            logger.warning(f"User {email} has no role assigned, defaulting to 'intern_guest'")
+            user_role_code = "intern_guest"
         
         logger.info(f"User logged in: {email} (role: {user_role_code})")
         
@@ -152,7 +152,7 @@ class AuthService:
             user_id: User ID
             
         Returns:
-            Role code (admin, teacher, student) hoặc None
+            Role code (admin, employee, intern_guest) hoặc None
         """
         from bson import ObjectId
         
@@ -189,8 +189,8 @@ class AuthService:
         user_role_code = await self._get_user_role(user_id)
         
         # Thêm role vào user dict
-        # Nếu không tìm thấy role, default là "student"
-        user["role"] = user_role_code if user_role_code else "student"
+        # Nếu không tìm thấy role, default là "intern_guest"
+        user["role"] = user_role_code if user_role_code else "intern_guest"
         
         return UserInDB(**user)
     
@@ -206,13 +206,23 @@ class AuthService:
         """
         return self.jwt_service.verify_token(token)
     
-    async def get_all_users(self) -> list[UserInDB]:
+    async def get_all_users(self, role_code: Optional[str] = None) -> list[UserInDB]:
         """
         Lấy tất cả users (Admin only)
+
+        Args:
+            role_code: Optional role code để lọc (admin/employee/intern_guest)
         
         Returns:
             List of UserInDB
         """
+        normalized_role = role_code.strip().lower() if role_code else None
+
+        if normalized_role:
+            role_exists = await self.user_repo.db.roles.find_one({"code": normalized_role})
+            if not role_exists:
+                raise ValueError(f"Role '{normalized_role}' không tồn tại")
+
         users = await self.user_repo.get_all_users()
         result = []
         for user in users:
@@ -220,10 +230,13 @@ class AuthService:
             # Note: user dict from repo has 'id' (str) instead of '_id' (ObjectId) due to serialization
             try:
                 role_code = await self._get_user_role(user["id"])
-                user["role"] = role_code if role_code else "student"
+                user["role"] = role_code if role_code else "intern_guest"
             except Exception as e:
                 logger.error(f"Error fetching role for user {user.get('id')}: {e}")
-                user["role"] = "student"
+                user["role"] = "intern_guest"
+
+            if normalized_role and user["role"] != normalized_role:
+                continue
                 
             result.append(UserInDB(**user))
         return result

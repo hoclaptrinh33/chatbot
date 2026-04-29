@@ -8,6 +8,8 @@ import { Chatbot } from '@/types/chatbot';
 import { Button, Modal, Input, Form, Select, Dropdown, MenuProps, notification } from 'antd';
 import { PlusOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import ShareDatasetModal from '@/components/Datasets/ShareDatasetModal';
+import useAuthStore from '@/stores/authStore';
 
 const DatasetListPage = () => {
     const router = useRouter();
@@ -17,9 +19,12 @@ const DatasetListPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [shareDatasetId, setShareDatasetId] = useState<string | null>(null);
     const [form] = Form.useForm();
     const [renameForm] = Form.useForm();
     const [search, setSearch] = useState('');
+    const { user } = useAuthStore();
 
     /**
      * Lấy danh sách datasets từ backend
@@ -125,6 +130,18 @@ const DatasetListPage = () => {
 
     const getMenuProps = (dataset: Dataset): MenuProps => ({
         items: [
+            ...(user?.role === 'admin' || user?.role === 'employee'
+                ? [
+                    {
+                        key: 'share',
+                        label: 'Share',
+                        onClick: () => {
+                            setShareDatasetId(dataset.id);
+                            setIsShareModalOpen(true);
+                        }
+                    }
+                ]
+                : []),
             {
                 key: 'rename',
                 label: 'Rename',
@@ -281,6 +298,18 @@ const DatasetListPage = () => {
                     </Form.Item>
                 </Form>
             </Modal>
+
+            {shareDatasetId && (
+                <ShareDatasetModal
+                    datasetId={shareDatasetId}
+                    open={isShareModalOpen}
+                    onClose={() => {
+                        setIsShareModalOpen(false);
+                        setShareDatasetId(null);
+                    }}
+                    onSuccess={fetchDatasets}
+                />
+            )}
         </div>
     );
 };

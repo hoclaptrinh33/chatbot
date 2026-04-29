@@ -32,6 +32,7 @@ class DatasetResponse(BaseModel):
     description: Optional[str] = None
     # config: DatasetConfig  <-- Removed
     created_at: datetime
+    shared_with: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,6 +85,14 @@ class DatasetFileResponse(BaseModel):
 class ToggleDatasetFileRequest(BaseModel):
     """Request: Bật/tắt dataset file"""
     enabled: bool
+
+
+class ShareDatasetRequest(BaseModel):
+    """Request: Chia sẻ dataset cho danh sách user IDs"""
+    user_ids: Optional[List[str]] = Field(default=None, description="Danh sách user IDs được chia sẻ")
+    # Backward compatibility với payload cũ trên UI.
+    student_ids: Optional[List[str]] = Field(default=None, description="Legacy field")
+    all_students: bool = Field(default=False, description="Legacy mode, chưa hỗ trợ fully")
 
 
 # ==================== Chat Schemas ====================

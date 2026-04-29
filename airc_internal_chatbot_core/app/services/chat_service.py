@@ -101,6 +101,7 @@ class ChatService:
             raise ValueError("Câu hỏi không được để trống")
         
         dataset_ids = dataset_ids[:MAX_DATASETS_PER_REQUEST] if dataset_ids else []
+        requested_datasets = bool(dataset_ids)
         logger.info(f"[CHAT] Xử lý câu hỏi: '{question[:50]}...' | Datasets: {len(dataset_ids)} | Session: {session_id}")
 
         # 2. Check Semantic Cache (Tối ưu performance)
@@ -197,6 +198,36 @@ class ChatService:
                     debug_metrics["model_used"] = rag_model
                     debug_metrics["reranker_used"] = rag_reranker
 
+        # 0.7 Dataset access control (non-admin users)
+        if user_context and dataset_ids:
+            role = str(user_context.get("role", "")).lower().strip()
+            if "." in role:
+                role = role.split(".")[-1]
+
+            user_id = user_context.get("id")
+            if role != "admin" and user_id:
+                accessible_dataset_ids: List[str] = []
+
+                for ds_id in dataset_ids:
+                    dataset = await self.dataset_repo.get_by_id(ds_id)
+                    if not dataset:
+                        continue
+
+                    is_owner = dataset.get("owner_id") == user_id
+                    shared_with = dataset.get("shared_with", []) or []
+                    is_shared = user_id in shared_with
+
+                    if is_owner or is_shared:
+                        accessible_dataset_ids.append(ds_id)
+
+                denied_count = len(dataset_ids) - len(accessible_dataset_ids)
+                if denied_count > 0:
+                    logger.warning(
+                        f"[CHAT] Blocked {denied_count} dataset(s) due to share permission for user={user_id}"
+                    )
+
+                dataset_ids = accessible_dataset_ids
+
                 
         grouped_results = []
         errors = []
@@ -218,7 +249,9 @@ class ChatService:
                     errors.append({"dataset_id": ds_id, "error": res["error"]})
         else:
             # No datasets configured
-            if chatbot_id and self.chatbot_repo:
+            if requested_datasets:
+                logger.warning("[CHAT] No accessible datasets after permission filtering")
+            elif chatbot_id and self.chatbot_repo:
                 # Chatbot explicitly has NO datasets = No knowledge base
                 logger.warning(f"[CHAT] Chatbot '{chatbot.get('name', chatbot_id)}' has ZERO datasets - cannot answer from documents")
                 # grouped_results stays empty, LLM prompt will handle "no knowledge" case

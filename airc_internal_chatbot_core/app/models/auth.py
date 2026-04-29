@@ -5,14 +5,14 @@ from datetime import datetime
 
 class UserRole(str, Enum):
     """
-    Vai trò người dùng trong hệ thống giáo dục
+    Vai trò người dùng trong hệ thống
     - ADMIN: Quản trị viên - full access
-    - TEACHER: Giảng viên - tạo/quản lý datasets của mình
-    - STUDENT: Sinh viên - chỉ xem datasets được share
+    - EMPLOYEE: Nhân viên - tạo/quản lý datasets của mình
+    - INTERN_GUEST: Thực tập sinh/khách - chủ yếu dùng chatbot theo quyền được cấp
     """
     ADMIN = "admin"
-    TEACHER = "teacher"
-    STUDENT = "student"
+    EMPLOYEE = "employee"
+    INTERN_GUEST = "intern_guest"
 
 
 class Permission(str, Enum):
@@ -62,5 +62,5 @@ class User(BaseModel):
     user_id: str # Alias for id, used in Core logic
     email: str
     full_name: str
-    role: UserRole = UserRole.STUDENT
+    role: UserRole = UserRole.INTERN_GUEST
     is_active: bool = True

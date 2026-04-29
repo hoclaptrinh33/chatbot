@@ -64,7 +64,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 form={form}
                 layout="vertical"
                 onFinish={handleSubmit}
-                initialValues={{ role: 'student' }}
+                initialValues={{ role: 'intern_guest' }}
             >
                 <Form.Item
                     name="email"
@@ -99,8 +99,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                     rules={[{ required: true, message: 'Vui long chon vai tro' }]}
                 >
                     <Select>
-                        <Select.Option value="student">Student</Select.Option>
-                        <Select.Option value="teacher">Teacher</Select.Option>
+                        <Select.Option value="intern_guest">Thực tập sinh/Khách</Select.Option>
+                        <Select.Option value="employee">Nhân viên</Select.Option>
                         {/* Admin creation disabled via UI to enforce unique admin policy */}
                         {/* <Select.Option value="admin">Admin</Select.Option> */}
                     </Select>

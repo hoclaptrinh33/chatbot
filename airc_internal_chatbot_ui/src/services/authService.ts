@@ -21,6 +21,7 @@ export interface IAuthService {
     login(email: string, password: string): Promise<LoginResponse>;
     getMe(token: string): Promise<User>;
     getPermissions(token: string): Promise<string[]>;
+    getAllUsers(token: string, role?: string): Promise<User[]>;
 }
 
 /**
@@ -81,11 +82,12 @@ class AuthService implements IAuthService {
     }
 
     /**
-     * Lay danh sach tat ca users (Admin only)
+     * Lay danh sach users theo role (Admin/Employee theo quy dinh backend)
      */
-    public async getAllUsers(token: string): Promise<User[]> {
+    public async getAllUsers(token: string, role?: string): Promise<User[]> {
         const response = await this.api.get<User[]>('/users', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            params: role ? { role } : undefined
         });
         return response.data;
     }

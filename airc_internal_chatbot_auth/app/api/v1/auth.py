@@ -7,7 +7,7 @@ from app.api.dependencies import (
     get_auth_service, 
     get_current_user, 
     get_admin_user,
-    get_admin_user,
+    get_employee_or_admin,
     require_permission,
     get_rbac_service
 )
@@ -24,8 +24,11 @@ from app.models.user import (
 )
 from app.core.rate_limiter import rate_limiter
 from app.core.validators import InputValidator
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    from app.services.rbac_service import RBACService
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,7 @@ async def register(
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
-    Đăng ký user mới (default role: STUDENT)
+    Đăng ký user mới (default role: INTERN_GUEST)
     
     Args:
         request: FastAPI request object
@@ -302,26 +305,49 @@ async def get_my_permissions(
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    current_user: Annotated[UserInDB, Depends(get_admin_user)],
-    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+    current_user: Annotated[UserInDB, Depends(get_employee_or_admin)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    role: Optional[str] = None
 ):
     """
-    Lấy danh sách tất cả users (Admin only)
+    Lấy danh sách users theo quyền hiện tại
+
+    Quy tắc truy cập:
+    - Admin: xem tất cả users hoặc filter theo mọi role.
+    - Employee: chỉ được phép filter role=intern_guest để phục vụ chia sẻ dataset.
     
     Returns:
         List of users
     """
-    users = await auth_service.get_all_users()
-    return [
-        UserResponse(
-            id=u.id,
-            email=u.email,
-            full_name=u.full_name,
-            role=u.role,
-            is_active=u.is_active,
-            created_at=u.created_at
-        ) for u in users
-    ]
+    try:
+        if current_user.role == "employee":
+            if not role:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Employee must provide role filter"
+                )
+            if role.strip().lower() != "intern_guest":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Employee can only query intern_guest users"
+                )
+
+        users = await auth_service.get_all_users(role_code=role)
+        return [
+            UserResponse(
+                id=u.id,
+                email=u.email,
+                full_name=u.full_name,
+                role=u.role,
+                is_active=u.is_active,
+                created_at=u.created_at
+            ) for u in users
+        ]
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
     
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_admin(

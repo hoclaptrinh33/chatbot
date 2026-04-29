@@ -41,10 +41,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         return null; // Or a loader if preferred
     }
 
-    const isStudent = user?.role === 'student';
+    const isInternGuest = user?.role === 'intern_guest';
 
-    // RBAC: Serve separate layout for Student
-    if (isStudent) {
+    // RBAC: Serve separate layout for intern/guest users
+    if (isInternGuest) {
         return <StudentLayout>{children}</StudentLayout>;
     }
 

@@ -81,7 +81,7 @@ class DatasetResponse(DatasetBase):
 
 class ShareDatasetRequest(BaseModel):
     """Request to share dataset"""
-    student_ids: List[str] = []  # Empty = share with all students
+    user_ids: List[str] = []
     
 
 class UploadResponse(BaseModel):

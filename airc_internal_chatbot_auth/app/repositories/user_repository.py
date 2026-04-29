@@ -18,7 +18,7 @@ class UserRepository(BaseRepository):
         email: str,
         hashed_password: str,
         full_name: str,
-        role: str = "student"
+        role: str = "intern_guest"
     ) -> dict:
         """
         Tạo user mới

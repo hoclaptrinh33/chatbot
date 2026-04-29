@@ -4,7 +4,7 @@ Seed Chatbot & Dataset cho Core Service
 Script này tạo:
 1. Sample datasets cho thử nghiệm
 2. Sample chatbot với cấu hình RAG
-3. Gán chatbot cho users (teacher, student)
+3. Gán chatbot cho users (employee, intern_guest)
 
 Lưu ý:
 - Chạy SAU KHI đã seed Auth database (để có user IDs)
@@ -64,7 +64,7 @@ class CoreDataSeeder:
         # Test connections
         self.core_client.admin.command('ping')
         self.auth_client.admin.command('ping')
-        logger.info("✅ Connected to both databases\n")
+        logger.info("Connected to both databases\n")
     
     def close(self):
         """Đóng kết nối"""
@@ -83,36 +83,36 @@ class CoreDataSeeder:
         if admin:
             users["admin"] = str(admin["_id"])
         
-        # Lấy teacher
-        teacher = self.auth_db.users.find_one({"email": "nguyen.van.a@airc.edu.vn"})
-        if teacher:
-            users["teacher"] = str(teacher["_id"])
+        # Lấy employee
+        employee = self.auth_db.users.find_one({"email": "nhanvien01@airc.edu.vn"})
+        if employee:
+            users["employee"] = str(employee["_id"])
         
-        # Lấy student
-        student = self.auth_db.users.find_one({"email": "sv01@student.airc.edu.vn"})
-        if student:
-            users["student"] = str(student["_id"])
+        # Lấy intern_guest
+        intern_guest = self.auth_db.users.find_one({"email": "intern01@guest.airc.edu.vn"})
+        if intern_guest:
+            users["intern_guest"] = str(intern_guest["_id"])
         
-        logger.info(f"👥 Found users: {list(users.keys())}")
+        logger.info(f"Found users: {list(users.keys())}")
         return users
     
     def clear_existing_data(self):
         """Xóa dữ liệu cũ"""
-        logger.info("🗑️  Clearing existing chatbots and datasets...")
+        logger.info("Clearing existing chatbots and datasets...")
         
         self.core_db.chatbots.delete_many({})
         self.core_db.datasets.delete_many({})
         self.core_db.files.delete_many({})
         self.core_db.dataset_files.delete_many({})
         
-        logger.info("✅ Cleared existing data\n")
+        logger.info("Cleared existing data\n")
     
     def seed_datasets(self, user_ids: Dict[str, str]) -> List[str]:
         """Tạo sample datasets"""
-        logger.info("📚 Creating sample datasets...")
+        logger.info("Creating sample datasets...")
         
         admin_id = user_ids.get("admin", "unknown")
-        teacher_id = user_ids.get("teacher", "unknown")
+        employee_id = user_ids.get("employee", "unknown")
         
         datasets = [
             {
@@ -146,10 +146,10 @@ class CoreDataSeeder:
                 "updated_at": None
             },
             {
-                "name": "Dataset của Teacher",
-                "description": "Dataset tạo bởi giảng viên",
+                "name": "Dataset của Nhân viên",
+                "description": "Dataset tạo bởi nhân viên",
                 "visibility": "private",
-                "owner_id": teacher_id,
+                "owner_id": employee_id,
                 "status": "ready",
                 "file_count": 0,
                 "created_at": datetime.utcnow(),
@@ -160,7 +160,7 @@ class CoreDataSeeder:
         result = self.core_db.datasets.insert_many(datasets)
         dataset_ids = [str(id) for id in result.inserted_ids]
         
-        logger.info(f"✅ Created {len(dataset_ids)} datasets")
+        logger.info(f"Created {len(dataset_ids)} datasets")
         for i, ds in enumerate(datasets):
             logger.info(f"   - {ds['name']} (ID: {dataset_ids[i][:8]}...)")
         
@@ -168,14 +168,14 @@ class CoreDataSeeder:
     
     def seed_chatbots(self, user_ids: Dict[str, str], dataset_ids: List[str]) -> List[str]:
         """Tạo sample chatbots với assignment logic"""
-        logger.info("\n🤖 Creating sample chatbots...")
+        logger.info("\nCreating sample chatbots...")
         
         admin_id = user_ids.get("admin", "unknown")
-        teacher_id = user_ids.get("teacher")
-        student_id = user_ids.get("student")
+        employee_id = user_ids.get("employee")
+        intern_guest_id = user_ids.get("intern_guest")
         
         chatbots = [
-            # Chatbot 1: Trợ lý học tập - Gán cho Teacher
+            # Chatbot 1: Trợ lý học tập - Gán cho Employee
             {
                 "name": "Trợ lý Học tập",
                 "description": "Chatbot hỗ trợ học tập, giải đáp thắc mắc về các môn học",
@@ -191,15 +191,15 @@ class CoreDataSeeder:
                     "search_mode": "hybrid"
                 },
                 "dataset_ids": dataset_ids[:2] if len(dataset_ids) >= 2 else dataset_ids,  # Toán + Anh
-                "allowed_roles": ["teacher", "admin"],
-                "allowed_user_ids": [teacher_id] if teacher_id else [],  # Gán cho teacher
+                "allowed_roles": ["employee", "admin"],
+                "allowed_user_ids": [employee_id] if employee_id else [],  # Gán cho employee
                 "visibility": "public",
                 "owner_id": admin_id,
                 "is_active": True,
                 "created_at": datetime.utcnow(),
                 "updated_at": None
             },
-            # Chatbot 2: Hỗ trợ học vụ - Gán cho Student
+            # Chatbot 2: Hỗ trợ học vụ - Gán cho Intern/Guest
             {
                 "name": "Hỗ trợ Học vụ",
                 "description": "Chatbot giải đáp các thắc mắc về quy định, thủ tục học vụ",
@@ -215,8 +215,8 @@ class CoreDataSeeder:
                     "search_mode": "hybrid"
                 },
                 "dataset_ids": [dataset_ids[2]] if len(dataset_ids) >= 3 else [],  # Quy định học vụ
-                "allowed_roles": ["student", "admin"],
-                "allowed_user_ids": [student_id] if student_id else [],  # Gán cho student
+                "allowed_roles": ["intern_guest", "admin"],
+                "allowed_user_ids": [intern_guest_id] if intern_guest_id else [],  # Gán cho intern_guest
                 "visibility": "public",
                 "owner_id": admin_id,
                 "is_active": True,
@@ -252,7 +252,7 @@ class CoreDataSeeder:
         result = self.core_db.chatbots.insert_many(chatbots)
         chatbot_ids = [str(id) for id in result.inserted_ids]
         
-        logger.info(f"✅ Created {len(chatbot_ids)} chatbots")
+        logger.info(f"Created {len(chatbot_ids)} chatbots")
         for i, cb in enumerate(chatbots):
             assigned_to = cb.get("allowed_user_ids", [])
             assigned_str = f"(Assigned: {len(assigned_to)} users)" if assigned_to else "(No specific assignment)"
@@ -263,18 +263,18 @@ class CoreDataSeeder:
     def verify_data(self):
         """Kiểm tra dữ liệu đã tạo"""
         logger.info("\n" + "=" * 80)
-        logger.info("✅ CORE DATABASE SEEDING COMPLETED!")
+        logger.info("CORE DATABASE SEEDING COMPLETED!")
         logger.info("=" * 80)
         
         datasets_count = self.core_db.datasets.count_documents({})
         chatbots_count = self.core_db.chatbots.count_documents({})
         
-        logger.info(f"\n📊 Statistics:")
+        logger.info(f"\nStatistics:")
         logger.info(f"   - Datasets: {datasets_count}")
         logger.info(f"   - Chatbots: {chatbots_count}")
         
         # Show chatbot assignments
-        logger.info(f"\n🤖 Chatbot Assignments:")
+        logger.info(f"\nChatbot Assignments:")
         logger.info("   " + "-" * 60)
         
         chatbots = list(self.core_db.chatbots.find())
@@ -300,8 +300,8 @@ class CoreDataSeeder:
         logger.info("   " + "-" * 60)
         
         # Important note
-        logger.info(f"\n⚠️  LƯU Ý:")
-        logger.info("   - Mỗi Teacher/Student chỉ được gán 1 chatbot")
+        logger.info(f"\nLƯU Ý:")
+        logger.info("   - Mỗi Employee/Intern_Guest chỉ được gán 1 chatbot")
         logger.info("   - Admin có thể dùng tất cả chatbots")
         logger.info("   - Để đổi chatbot cho user, cần xóa assignment cũ trước")
         
@@ -316,7 +316,7 @@ class CoreDataSeeder:
             user_ids = self.get_user_ids()
             
             if not user_ids:
-                logger.error("❌ No users found! Please run Auth seed first.")
+                logger.error("No users found! Please run Auth seed first.")
                 return
             
             if clear_existing:
@@ -329,7 +329,7 @@ class CoreDataSeeder:
             self.verify_data()
             
         except Exception as e:
-            logger.error(f"\n❌ Seeding failed: {e}")
+            logger.error(f"\nSeeding failed: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -344,10 +344,10 @@ def main():
     
     if in_docker:
         mongodb_url = "mongodb://mongodb:27017"
-        logger.info("🐳 Running inside Docker container")
+        logger.info("Running inside Docker container")
     else:
         mongodb_url = "mongodb://localhost:27017"
-        logger.info("💻 Running on host machine")
+        logger.info("Running on host machine")
     
     seeder = CoreDataSeeder(
         core_mongodb_url=mongodb_url,

@@ -563,16 +563,16 @@ export default function EditChatbotPage() {
                                             >
                                                 <Option value="admin">Admin</Option>
                                                 <Option
-                                                    value="teacher"
-                                                    disabled={rolesWithChatbot.includes('teacher')}
+                                                    value="employee"
+                                                    disabled={rolesWithChatbot.includes('employee')}
                                                 >
-                                                    Teacher {rolesWithChatbot.includes('teacher') && <LockOutlined style={{ marginLeft: 8 }} />}
+                                                    Nhân viên {rolesWithChatbot.includes('employee') && <LockOutlined style={{ marginLeft: 8 }} />}
                                                 </Option>
                                                 <Option
-                                                    value="student"
-                                                    disabled={rolesWithChatbot.includes('student')}
+                                                    value="intern_guest"
+                                                    disabled={rolesWithChatbot.includes('intern_guest')}
                                                 >
-                                                    Student {rolesWithChatbot.includes('student') && <LockOutlined style={{ marginLeft: 8 }} />}
+                                                    Thực tập sinh/Khách {rolesWithChatbot.includes('intern_guest') && <LockOutlined style={{ marginLeft: 8 }} />}
                                                 </Option>
                                             </Select>
                                         </Form.Item>

@@ -37,7 +37,8 @@ const UserTable: React.FC<UserTableProps> = ({
             render: (role: string) => {
                 let color = 'geekblue';
                 if (role === 'admin') color = 'volcano';
-                if (role === 'teacher') color = 'green';
+                if (role === 'employee') color = 'green';
+                if (role === 'intern_guest') color = 'gold';
                 return (
                     <Tag color={color}>
                         {role.toUpperCase()}

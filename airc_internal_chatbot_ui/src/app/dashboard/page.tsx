@@ -59,14 +59,14 @@ export default function DashboardPage() {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
-        if (user?.role === 'student') {
+        if (user?.role === 'intern_guest') {
             router.push('/dashboard/chat');
         } else {
             fetchDashboardData();
         }
     }, [user, router]);
 
-    if (user?.role === 'student') return null; // Prevent flash of dashboard content
+    if (user?.role === 'intern_guest') return null; // Prevent flash of dashboard content
 
     // Helper function to format time ago
     const formatTimeAgo = (timestamp: string) => {

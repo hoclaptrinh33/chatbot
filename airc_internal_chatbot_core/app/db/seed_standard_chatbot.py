@@ -49,10 +49,10 @@ async def seed():
     # 2. Define Bots
     bots = [
         {
-            "name": "AIRC Student Helper",
-            "description": "Trợ lý học tập dành riêng cho sinh viên.",
+            "name": "AIRC Intern/Guest Helper",
+            "description": "Trợ lý học tập dành riêng cho thực tập sinh và khách.",
             "dataset_ids": valid_dataset_ids,
-            "allowed_roles": ["student"], # STRICTLY STUDENT
+            "allowed_roles": ["intern_guest"], # STRICTLY INTERN_GUEST
             "config": {
                 "model": "models/gemini-2.5-flash",
                 "temperature": 0.7,
@@ -69,10 +69,10 @@ async def seed():
             "updated_at": datetime.utcnow()
         },
         {
-            "name": "AIRC Teacher Assistant",
-            "description": "Hỗ trợ giảng viên soạn giáo án và nghiên cứu.",
+            "name": "AIRC Employee Assistant",
+            "description": "Hỗ trợ nhân viên soạn tài liệu và nghiên cứu nội bộ.",
             "dataset_ids": valid_dataset_ids,
-            "allowed_roles": ["teacher"], # STRICTLY TEACHER
+            "allowed_roles": ["employee"], # STRICTLY EMPLOYEE
             "config": {
                 "model": "models/gemini-2.5-flash",
                 "temperature": 0.5,

@@ -31,8 +31,8 @@ const RoleTable: React.FC<RoleTableProps> = ({
             key: 'name',
             render: (text, record) => (
                 <Space>
-                    <Tag color={text === 'admin' ? 'red' : text === 'teacher' ? 'blue' : 'green'}>
-                        {text.toUpperCase()}
+                    <Tag color={record.code === 'admin' ? 'red' : record.code === 'employee' ? 'blue' : 'green'}>
+                        {record.code.toUpperCase()}
                     </Tag>
                     {record.is_system && <Tag color="purple">SYSTEM</Tag>}
                 </Space>

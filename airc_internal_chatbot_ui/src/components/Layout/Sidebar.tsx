@@ -36,14 +36,14 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
 
     // Lay role tu AuthStore (DYNAMIC)
     const { user } = useAuthStore();
-    const userRole = user?.role?.toLowerCase() || 'student';
+    const userRole = user?.role?.toLowerCase() || 'intern_guest';
 
     // Menu items configuration
     const getMenuItems = (role: string) => {
         const items: Array<{ key: string; icon: React.ReactNode; label: string }> = [];
 
-        // Dashboard chỉ cho admin và teacher
-        if (role === 'admin' || role === 'teacher') {
+        // Dashboard chỉ cho admin và employee
+        if (role === 'admin' || role === 'employee') {
             items.push({
                 key: '/dashboard',
                 icon: <DashboardOutlined />,
@@ -82,8 +82,8 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
             );
         }
 
-        // Teacher: Tạo dataset, upload tài liệu, chat với bot
-        if (role === 'teacher') {
+        // Employee: Tạo dataset, upload tài liệu, chat với bot
+        if (role === 'employee') {
             items.push(
                 {
                     key: '/dashboard/datasets',

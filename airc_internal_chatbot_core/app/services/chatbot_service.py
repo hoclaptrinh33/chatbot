@@ -78,11 +78,11 @@ class ChatbotService:
         
         Logic:
         - Admin: Thấy tất cả chatbots
-        - Teacher/Student: Chỉ thấy chatbots có allowed_roles chứa role của họ
+        - Employee/Intern_Guest: Chỉ thấy chatbots có allowed_roles chứa role của họ
         
         Args:
             user_id: User ID
-            user_role: User role (admin, teacher, student)
+            user_role: User role (admin, employee, intern_guest)
         """
         # Admin sees all chatbots
         if user_role == "admin":

@@ -5,8 +5,8 @@
 
 export enum UserRole {
     ADMIN = 'admin',
-    TEACHER = 'teacher',
-    STUDENT = 'student'
+    EMPLOYEE = 'employee',
+    INTERN_GUEST = 'intern_guest'
 }
 
 export enum Permission {

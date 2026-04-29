@@ -8,6 +8,7 @@ from app.models.schemas import (
     AddFilesToDatasetRequest,
     DatasetFileResponse,
     ToggleDatasetFileRequest,
+    ShareDatasetRequest,
     SuccessResponse,
     ChunkResponse
 )
@@ -32,11 +33,11 @@ async def create_dataset(
     current_user: User = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service)
 ):
-    """Tạo dataset mới (Teacher/Admin only)"""
+    """Tạo dataset mới (Employee/Admin only)"""
     try:
         # Check permission
         user_role = current_user.role
-        if user_role not in ["admin", "teacher"]:
+        if user_role not in ["admin", "employee"]:
             raise HTTPException(status_code=403, detail="Permission denied")
         
         # Config logic removed
@@ -71,11 +72,11 @@ async def list_datasets(
         if user_role == "admin":
             # Admin sees all datasets
             datasets = await dataset_service.list_datasets()
-        elif user_role == "teacher":
-            # Teacher sees own datasets
+        elif user_role == "employee":
+            # Employee sees own datasets
             datasets = await dataset_service.list_datasets_by_owner(user_id)
-        else:  # student
-            # Student sees shared datasets only
+        else:  # intern_guest
+            # Intern/Guest sees shared datasets only
             datasets = await dataset_service.list_datasets_shared_with(user_id)
         
         return [DatasetResponse(**ds) for ds in datasets]
@@ -188,20 +189,20 @@ async def add_files_to_dataset(
 ):
     """
     Thêm files vào dataset
-    Permission: Admin/Teacher only, must be owner (teacher) or admin
+    Permission: Admin/Employee only, must be owner (employee) or admin
     """
     user_role = current_user.role
     user_id = current_user.user_id
     
-    # Check role: Only admin/teacher can add files
-    if user_role not in ["admin", "teacher"]:
+    # Check role: Only admin/employee can add files
+    if user_role not in ["admin", "employee"]:
         raise HTTPException(
             status_code=403,
-            detail="Permission denied: Only admin/teacher can add files"
+            detail="Permission denied: Only admin/employee can add files"
         )
     
-    # Check ownership for teachers
-    if user_role == "teacher":
+    # Check ownership for employees
+    if user_role == "employee":
         dataset = await dataset_service.get_dataset(dataset_id)
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
@@ -283,8 +284,8 @@ async def remove_dataset_file(
     user_role = current_user.role
     user_id = current_user.user_id
     
-    # Check ownership for teachers
-    if user_role == "teacher":
+    # Check ownership for employees
+    if user_role == "employee":
         dataset = await dataset_service.get_dataset(dataset_id)
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
@@ -349,55 +350,65 @@ async def toggle_dataset_file(
 @router.post("/{dataset_id}/share", response_model=SuccessResponse)
 async def share_dataset(
     dataset_id: str,
-    payload: dict,  # {"student_ids": ["id1", "id2"]} or {"all_students": true}
+    payload: ShareDatasetRequest,
     current_user: User = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service)
 ):
     """
-    Share dataset with students (Teacher/Admin only)
+    Share dataset with users (Employee/Admin only)
     
     Body:
-        - student_ids: List[str] - List of student IDs
-        - all_students: bool - Share with all students
+        - user_ids: List[str] - List of target user IDs (recommended)
+        - student_ids: List[str] - Legacy field for compatibility
+        - all_students: bool - Legacy mode (not fully implemented)
     """
     try:
         # Check permission
         user_role = current_user.role
-        if user_role not in ["admin", "teacher"]:
+        if user_role not in ["admin", "employee"]:
             raise HTTPException(status_code=403, detail="Permission denied")
         
-        # Verify ownership (teacher) or admin
+        # Verify ownership (employee) or admin
         dataset = await dataset_service.get_dataset(dataset_id)
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
         
-        if user_role == "teacher" and dataset.get("owner_id") != current_user.user_id:
+        if user_role == "employee" and dataset.get("owner_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Not your dataset")
-        
-        # Get student IDs
-        if payload.get("all_students"):
-            # TODO: Call Auth service to get all students
-            # For now, if all_students is true, we might loop through all users with role 'student'
-            # OR we can assume the UI sends specific IDs.
-            # To fix 500, let's just initialize it empty but NOT crash.
-            # Ideally: student_ids = await auth_service.get_all_students()
-            student_ids = [] 
-            logger.warning("Share with all students not fully implemented yet")
+
+        has_explicit_user_list = payload.user_ids is not None or payload.student_ids is not None
+
+        if payload.user_ids is not None:
+            target_user_ids = payload.user_ids
+        elif payload.student_ids is not None:
+            target_user_ids = payload.student_ids
+        elif payload.all_students:
+            target_user_ids = []
+            logger.warning("Share with all_students mode is not fully implemented yet")
         else:
-            student_ids = payload.get("student_ids", [])
-            
-        if not student_ids and not payload.get("all_students"):
-             # If no students provided
-             pass
+            raise HTTPException(status_code=400, detail="Missing required field: user_ids")
+
+        # Normalize IDs: strip empty values and deduplicate while preserving order.
+        normalized_user_ids = list(dict.fromkeys([
+            uid.strip() for uid in target_user_ids if isinstance(uid, str) and uid.strip()
+        ]))
+
+        # If caller explicitly provides empty list, treat as unshare-all.
+        if not payload.all_students and not has_explicit_user_list:
+            raise HTTPException(status_code=400, detail="Missing required field: user_ids")
         
         # Share dataset
-        success = await dataset_service.share_dataset(dataset_id, student_ids)
+        success = await dataset_service.share_dataset(dataset_id, normalized_user_ids)
         if not success:
             raise HTTPException(status_code=400, detail="Failed to share dataset")
         
         return SuccessResponse(
             status="success",
-            message=f"Dataset shared with {len(student_ids) if student_ids else 'all'} students"
+            message=(
+                f"Dataset shared with {len(normalized_user_ids)} users"
+                if not payload.all_students
+                else "Dataset share updated (all_students mode pending full implementation)"
+            )
         )
     
     except HTTPException:

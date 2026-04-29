@@ -36,7 +36,7 @@ async def ask_question(
             history = [msg.dict() for msg in request.history]
         
         # Build User Context for RBAC
-        # CRITICAL FIX: Normalize role to lowercase string (e.g., "admin", "teacher", "student")
+        # CRITICAL FIX: Normalize role to lowercase string (e.g., "admin", "employee", "intern_guest")
         # Extract from UserRole enum safely
         if hasattr(current_user.role, "value"):
             role_str = current_user.role.value.lower()

@@ -26,7 +26,7 @@ export default function RegisterPage() {
                 email: values.email,
                 password: values.password,
                 full_name: values.fullName,
-                role: UserRole.STUDENT, // Mac dinh la Sinh vien (Student)
+                role: UserRole.INTERN_GUEST,
             });
             message.success('Đăng ký thành công! Vui lòng đăng nhập.');
             router.push('/auth/login');
@@ -72,7 +72,7 @@ export default function RegisterPage() {
                 onFinish={onFinish}
                 layout="vertical"
                 size="large"
-                initialValues={{ role: UserRole.STUDENT }}
+                initialValues={{ role: UserRole.INTERN_GUEST }}
             >
                 <Form.Item
                     name="email"
@@ -132,10 +132,10 @@ export default function RegisterPage() {
                     />
                 </Form.Item>
 
-                {/* Role selection removed - Defaults to Student */}
+                {/* Role selection removed - Defaults to Intern/Guest */}
                 {/* <Form.Item name="role" label="Vai trò (Testing)" hidden>
                     <Select>
-                        <Option value={UserRole.STUDENT}>Sinh viên</Option>
+                        <Option value={UserRole.INTERN_GUEST}>Thực tập sinh/Khách</Option>
                     </Select>
                 </Form.Item> */}
 

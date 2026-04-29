@@ -103,8 +103,8 @@ export default function ChatPage() {
         selectChatbot(value, bot?.dataset_ids || []);
     };
 
-    // STUDENT VIEW: Use StudentChat component
-    if (user?.role === 'student') {
+    // INTERN/GUEST VIEW: Use StudentChat component
+    if (user?.role === 'intern_guest') {
         return (
             <AuthGuard>
                 <StudentChat />

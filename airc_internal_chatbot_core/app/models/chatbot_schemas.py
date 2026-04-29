@@ -100,7 +100,7 @@ class ChatbotCreate(BaseModel):
     dataset_ids: List[str] = Field(default_factory=list, description="Datasets linked to this chatbot")
     
     # RBAC - Chỉ theo role, không theo user cụ thể
-    allowed_roles: List[str] = Field(default=["student", "teacher", "admin"], description="Roles allowed to use this chatbot")
+    allowed_roles: List[str] = Field(default=["intern_guest", "employee", "admin"], description="Roles allowed to use this chatbot")
     visibility: str = Field(default="public", description="public, private")
 
 
