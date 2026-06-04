@@ -33,8 +33,8 @@ const DatasetSidebar: React.FC<DatasetSidebarProps> = ({
                     </h2>
                 </div>
                 <div className="space-y-2 text-sm text-gray-500 pl-1">
-                    <div>{fileCount} files</div>
-                    <div>{chunkCount} chunks</div>
+                    <div>{fileCount} file</div>
+                    <div>{chunkCount} chunk</div>
                     <div>{totalSize}</div>
                 </div>
             </div>
@@ -46,7 +46,7 @@ const DatasetSidebar: React.FC<DatasetSidebarProps> = ({
                         }`}
                 >
                     <DatabaseOutlined />
-                    Knowledge base
+                    Cơ sở tri thức
                 </button>
             </div>
         </div>

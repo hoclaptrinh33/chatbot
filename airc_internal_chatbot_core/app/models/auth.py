@@ -62,5 +62,6 @@ class User(BaseModel):
     user_id: str # Alias for id, used in Core logic
     email: str
     full_name: str
+    department: Optional[str] = None
     role: UserRole = UserRole.INTERN_GUEST
     is_active: bool = True

@@ -49,22 +49,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     }
 
     return (
-        <Layout style={{ minHeight: '100vh' }}>
+            <Layout style={{ height: '100vh', overflow: 'hidden' }}>
             <MainSidebar
                 collapsed={collapsed}
                 onCollapse={setCollapsed}
             />
 
-            <Layout>
+            <Layout style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <MainHeader collapsed={collapsed} />
 
-                <Content style={{ margin: '24px 24px', minHeight: 280 }}>
+                <Content style={{ margin: '24px 24px', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                     <div
                         style={{
-                            padding: 24,
-                            minHeight: '100%',
+                            padding: 0,
+                            height: '100%',
                             background: '#f5f5f5', // Transparent content bg to show cards better
                             borderRadius: borderRadiusLG,
+                            overflow: 'auto',
                         }}
                     >
                         {children}

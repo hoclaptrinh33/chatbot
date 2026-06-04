@@ -48,7 +48,8 @@ async def ask_question(
         
         user_ctx = {
             "role": role_str, 
-            "id": current_user.user_id
+            "id": current_user.user_id,
+            "department": current_user.department
         }
 
         result = await chat_service.ask_question(

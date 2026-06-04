@@ -4,7 +4,7 @@ import { authService } from '@/services/authService';
 import { notification } from 'antd';
 
 interface UseUserSearchOptions {
-    token?: string;
+    token?: string | null;
 }
 
 interface UseUserSearchReturn {
@@ -12,9 +12,11 @@ interface UseUserSearchReturn {
     filteredUsers: User[];
     searchQuery: string;
     selectedRole: string;
+    selectedDepartment: string;
     loading: boolean;
     setSearchQuery: (query: string) => void;
     setSelectedRole: (role: string) => void;
+    setSelectedDepartment: (department: string) => void;
     resetFilters: () => void;
     refetch: () => Promise<void>;
 }
@@ -36,6 +38,7 @@ export function useUserSearch(options: UseUserSearchOptions): UseUserSearchRetur
     const [users, setUsers] = useState<User[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedRole, setSelectedRole] = useState<string>('');
+    const [selectedDepartment, setSelectedDepartment] = useState<string>('');
     const [loading, setLoading] = useState(false);
 
     // Fetch users từ backend
@@ -43,18 +46,22 @@ export function useUserSearch(options: UseUserSearchOptions): UseUserSearchRetur
         if (!token) return;
         setLoading(true);
         try {
-            const data = await authService.getAllUsers(token, selectedRole || undefined);
+            const data = await authService.getAllUsers(
+                token,
+                selectedRole || undefined,
+                selectedDepartment || undefined
+            );
             setUsers(data);
         } catch (error: unknown) {
             console.error('Failed to fetch users:', error);
             notification.error({
-                message: 'Loi tai du lieu',
-                description: 'Khong the lay danh sach users (chi Admin moi co quyen).',
+                message: 'Lỗi tải dữ liệu',
+                description: 'Không thể lấy danh sách người dùng (chỉ Admin mới có quyền).',
             });
         } finally {
             setLoading(false);
         }
-    }, [token, selectedRole]);
+    }, [token, selectedRole, selectedDepartment]);
 
     // Tự động fetch khi token hoặc selectedRole thay đổi
     useEffect(() => {
@@ -68,7 +75,8 @@ export function useUserSearch(options: UseUserSearchOptions): UseUserSearchRetur
         const query = searchQuery.toLowerCase();
         return users.filter(user => 
             user.full_name.toLowerCase().includes(query) ||
-            user.email.toLowerCase().includes(query)
+            user.email.toLowerCase().includes(query) ||
+            (user.department || '').toLowerCase().includes(query)
         );
     }, [users, searchQuery]);
 
@@ -76,6 +84,7 @@ export function useUserSearch(options: UseUserSearchOptions): UseUserSearchRetur
     const resetFilters = useCallback(() => {
         setSearchQuery('');
         setSelectedRole('');
+        setSelectedDepartment('');
     }, []);
 
     return {
@@ -83,9 +92,11 @@ export function useUserSearch(options: UseUserSearchOptions): UseUserSearchRetur
         filteredUsers,
         searchQuery,
         selectedRole,
+        selectedDepartment,
         loading,
         setSearchQuery,
         setSelectedRole,
+        setSelectedDepartment,
         resetFilters,
         refetch: fetchUsers,
     };

@@ -5,8 +5,10 @@ import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
 interface UserSearchFilterProps {
     searchQuery: string;
     selectedRole: string;
+    selectedDepartment: string;
     onSearchChange: (query: string) => void;
     onRoleChange: (role: string) => void;
+    onDepartmentChange: (department: string) => void;
     onReset: () => void;
     loading?: boolean;
     resultCount?: number;
@@ -24,25 +26,27 @@ interface UserSearchFilterProps {
 const UserSearchFilter: React.FC<UserSearchFilterProps> = ({
     searchQuery,
     selectedRole,
+    selectedDepartment,
     onSearchChange,
     onRoleChange,
+    onDepartmentChange,
     onReset,
     loading = false,
     resultCount = 0,
 }) => {
     const roleOptions = [
-        { label: 'Admin', value: 'admin' },
-        { label: 'Employee', value: 'employee' },
-        { label: 'Intern/Guest', value: 'intern_guest' },
+        { label: 'Quản trị viên', value: 'admin' },
+        { label: 'Nhân viên', value: 'employee' },
+        { label: 'Thực tập sinh/Khách', value: 'intern_guest' },
     ];
 
     return (
         <>
             {/* Search and Filter Bar */}
-            <Row gutter={[16, 16]} className="mb-6">
-                <Col xs={24} sm={12} md={10}>
+            <Row gutter={[16, 16]} className="mb-2">
+                <Col xs={24} sm={12} md={8}>
                     <Input
-                        placeholder="Tim kiem theo ten hoac email..."
+                        placeholder="Tìm kiếm theo tên, email hoặc phòng ban..."
                         prefix={<SearchOutlined />}
                         value={searchQuery}
                         onChange={(e) => onSearchChange(e.target.value)}
@@ -50,9 +54,9 @@ const UserSearchFilter: React.FC<UserSearchFilterProps> = ({
                         disabled={loading}
                     />
                 </Col>
-                <Col xs={24} sm={12} md={8}>
+                <Col xs={24} sm={12} md={6}>
                     <Select
-                        placeholder="Loc theo vai tro"
+                        placeholder="Lọc theo vai trò"
                         value={selectedRole}
                         onChange={onRoleChange}
                         style={{ width: '100%' }}
@@ -61,23 +65,33 @@ const UserSearchFilter: React.FC<UserSearchFilterProps> = ({
                         disabled={loading}
                     />
                 </Col>
-                <Col xs={24} sm={24} md={6} className="flex justify-end">
+                <Col xs={24} sm={12} md={6}>
+                    <Input
+                        placeholder="Lọc theo phòng ban/đơn vị"
+                        value={selectedDepartment}
+                        onChange={(e) => onDepartmentChange(e.target.value)}
+                        allowClear
+                        disabled={loading}
+                    />
+                </Col>
+                <Col xs={24} sm={24} md={4} className="flex justify-end">
                     <Button
                         icon={<ClearOutlined />}
                         onClick={onReset}
                         className="w-full"
                         disabled={loading}
                     >
-                        
+                        Xóa bộ lọc
                     </Button>
                 </Col>
             </Row>
 
             {/* Results Count */}
-            <div className="mb-4 text-gray-500">
-                Tong cong: <span className="font-semibold">{resultCount}</span> users
-                {searchQuery && <span> (Tim kiem: "{searchQuery}")</span>}
-                {selectedRole && <span> (Vai tro: {selectedRole.toUpperCase()})</span>}
+            <div className=" text-gray-500">
+                Tổng cộng: <span className="font-semibold">{resultCount}</span> người dùng
+                {searchQuery && <span> (Tìm kiếm: "{searchQuery}")</span>}
+                {selectedRole && <span> (Vai trò: {selectedRole.toUpperCase()})</span>}
+                {selectedDepartment && <span> (Phòng ban: {selectedDepartment})</span>}
             </div>
         </>
     );

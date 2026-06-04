@@ -99,7 +99,7 @@ export default function ShareDatasetModal({
                     : selectedUserIds;
 
             if (shareMode === 'specific' && userIdsToShare.length === 0) {
-                message.warning('Vui lòng chọn ít nhất 1 user để chia sẻ dataset');
+                message.warning('Vui lòng chọn ít nhất 1 người dùng để chia sẻ dataset');
                 return;
             }
 
@@ -108,7 +108,7 @@ export default function ShareDatasetModal({
                 message.success(`Đã chia sẻ dataset cho toàn bộ ${userIdsToShare.length} intern/guest`);
             } else {
                 await datasetService.shareDataset(datasetId, { user_ids: userIdsToShare });
-                message.success(`Đã chia sẻ dataset cho ${userIdsToShare.length} user`);
+                message.success(`Đã chia sẻ dataset cho ${userIdsToShare.length} người dùng`);
             }
 
             setCurrentSharedUserIds(userIdsToShare);
@@ -131,7 +131,7 @@ export default function ShareDatasetModal({
             title={
                 <Space>
                     <ShareAltOutlined />
-                    <span>Chia sẻ Dataset</span>
+                    <span>Chia sẻ dataset</span>
                 </Space>
             }
             open={open}
@@ -144,11 +144,11 @@ export default function ShareDatasetModal({
             <Spin spinning={loadingData}>
                 <Space direction="vertical" style={{ width: '100%' }} size="large">
                     <Text>
-                        Chia sẻ dataset này cho intern/guest để họ có thể sử dụng trong Chat.
+                        Chia sẻ dataset này cho intern/guest để họ có thể sử dụng trong chat.
                     </Text>
 
                     <div>
-                        <Text strong>Danh sách đã share hiện tại</Text>
+                        <Text strong>Danh sách đã chia sẻ hiện tại</Text>
                         <div className="mt-2 min-h-[36px] rounded border border-dashed border-gray-300 p-2">
                             {currentSharedUserIds.length > 0 ? (
                                 <Space size={[6, 6]} wrap>
@@ -162,7 +162,7 @@ export default function ShareDatasetModal({
                                     })}
                                 </Space>
                             ) : (
-                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa chia sẻ cho user nào" />
+                                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa chia sẻ cho người dùng nào" />
                             )}
                         </div>
                     </div>
@@ -172,14 +172,14 @@ export default function ShareDatasetModal({
                         onChange={(e) => setShareMode(e.target.value)}
                     >
                         <Space direction="vertical">
-                            <Radio value="specific">Chọn user cụ thể</Radio>
+                            <Radio value="specific">Chọn người dùng cụ thể</Radio>
                             <Radio value="all">Tất cả intern/guest</Radio>
                         </Space>
                     </Radio.Group>
 
                     {shareMode === 'specific' && (
                         <div>
-                            <Text strong>Chọn user để chia sẻ</Text>
+                            <Text strong>Chọn người dùng để chia sẻ</Text>
                             <Select
                                 mode="multiple"
                                 allowClear
@@ -213,7 +213,7 @@ export default function ShareDatasetModal({
 
                     {shareMode === 'all' && (
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                            Dataset sẽ được chia sẻ cho toàn bộ intern/guest ({internUsers.length} user).
+                            Dataset sẽ được chia sẻ cho toàn bộ intern/guest ({internUsers.length} người dùng).
                         </Text>
                     )}
                 </Space>

@@ -4,7 +4,7 @@ import { UserRole, Permission as PermissionEnum } from '../types/auth';
 
 // URL API Backend - RBAC routes are at /api/rbac/*
 // Use base URL without /auth suffix since RBAC is at /api/rbac
-const API_URL = process.env.NEXT_PUBLIC_AUTH_API?.replace('/api/auth', '/api') || 'http://localhost:8001/api';
+const API_URL = process.env.NEXT_PUBLIC_AUTH_API?.replace('/api/auth', '/api') || '/api';
 
 export interface Permission {
     id: string;

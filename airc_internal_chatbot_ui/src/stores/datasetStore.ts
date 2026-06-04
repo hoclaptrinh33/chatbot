@@ -35,7 +35,7 @@ const useDatasetStore = create<DatasetState>()(
                     console.error('Error fetching datasets:', err);
                     set({
                         loading: false,
-                        error: err.response?.data?.detail || 'Khong the tai danh sach datasets'
+                        error: err.response?.data?.detail || 'Không thể tải danh sách datasets'
                     });
                 }
             },
@@ -50,7 +50,7 @@ const useDatasetStore = create<DatasetState>()(
                     console.error('Error fetching dataset:', err);
                     set({
                         loading: false,
-                        error: err.response?.data?.detail || 'Khong the tai thong tin dataset'
+                        error: err.response?.data?.detail || 'Không thể tải thông tin dataset'
                     });
                 }
             },
@@ -69,7 +69,7 @@ const useDatasetStore = create<DatasetState>()(
                     console.error('Error creating dataset:', err);
                     set({
                         loading: false,
-                        error: err.response?.data?.detail || 'Loi khi tao dataset'
+                        error: err.response?.data?.detail || 'Lỗi khi tạo dataset'
                     });
                     return null;
                 }
@@ -89,7 +89,7 @@ const useDatasetStore = create<DatasetState>()(
                     console.error('Error deleting dataset:', err);
                     set({
                         loading: false,
-                        error: err.response?.data?.detail || 'Loi khi xoa dataset'
+                        error: err.response?.data?.detail || 'Lỗi khi xóa dataset'
                     });
                     return false;
                 }

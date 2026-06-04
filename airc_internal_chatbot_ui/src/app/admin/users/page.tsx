@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, notification, Breadcrumb, Button } from 'antd';
 import { TeamOutlined, UserAddOutlined } from '@ant-design/icons';
 import MainLayout from '@/components/Layout/MainLayout';
@@ -26,9 +26,11 @@ export default function UsersPage() {
         filteredUsers,
         searchQuery,
         selectedRole,
+        selectedDepartment,
         loading,
         setSearchQuery,
         setSelectedRole,
+        setSelectedDepartment,
         resetFilters,
         refetch,
     } = useUserSearch({ token });
@@ -52,13 +54,13 @@ export default function UsersPage() {
         if (!token) return;
         try {
             await authService.deleteUser(user.id, token);
-            notification.success({ message: 'Da xoa user' });
+            notification.success({ message: 'Đã xóa người dùng' });
             refetch();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi xoa user',
-                description: err.response?.data?.detail || 'Khong the xoa user',
+                message: 'Lỗi xóa người dùng',
+                description: err.response?.data?.detail || 'Không thể xóa người dùng',
             });
         }
     };
@@ -71,51 +73,58 @@ export default function UsersPage() {
     return (
         <AuthGuard>
             <MainLayout>
-                <div className="mb-6">
-                    <Breadcrumb
-                        items={[
-                            { title: 'Dashboard', href: '/dashboard' },
-                            { title: 'Admin' },
-                            { title: 'Users' },
-                        ]}
-                    />
+                    {/* Sticky header: breadcrumb + title + search filter */}
+                    <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f5f5f5', paddingBottom: 16 }}>
+                        <div className="mb-4">
+                            <Breadcrumb
+                                items={[
+                                    { title: 'Tổng quan', href: '/dashboard' },
+                                    { title: 'Admin' },
+                                    { title: 'Người dùng' },
+                                ]}
+                            />
 
-                    <div className="flex justify-between items-center mt-4">
-                        <div className="flex items-center gap-3">
-                            <TeamOutlined className="text-2xl text-red-700" />
-                            <h1 className="text-2xl font-bold m-0">Quan ly Users</h1>
-                        </div>
-                        <Button
-                            type="primary"
-                            icon={<UserAddOutlined />}
-                            onClick={handleCreateUser}
-                            className="bg-red-700 hover:bg-red-800"
-                        >
-                            Tao User
-                        </Button>
+                            <div className="flex justify-between items-center mt-4">
+                                <div className="flex items-center gap-3">
+                                    <TeamOutlined className="text-2xl text-red-700" />
+                                    <h1 className="text-2xl font-bold m-0">Quản lý người dùng</h1>
+                                </div>
+                                <Button
+                                    type="primary"
+                                    icon={<UserAddOutlined />}
+                                    onClick={handleCreateUser}
+                                    className="bg-red-700 hover:bg-red-800"
+                                >
+                                    Tạo người dùng
+                                </Button>
+                            </div>
                     </div>
-                </div>
 
-                <Card bordered={false} className="shadow-sm rounded-lg">
-                    {/* Search and Filter Component */}
-                    <UserSearchFilter
-                        searchQuery={searchQuery}
-                        selectedRole={selectedRole}
-                        onSearchChange={setSearchQuery}
-                        onRoleChange={setSelectedRole}
-                        onReset={resetFilters}
-                        loading={loading}
-                        resultCount={filteredUsers.length}
-                    />
+                        <Card bordered={false} className="shadow-sm rounded-lg">
+                            <UserSearchFilter
+                                searchQuery={searchQuery}
+                                selectedRole={selectedRole}
+                                selectedDepartment={selectedDepartment}
+                                onSearchChange={setSearchQuery}
+                                onRoleChange={setSelectedRole}
+                                onDepartmentChange={setSelectedDepartment}
+                                onReset={resetFilters}
+                                loading={loading}
+                                resultCount={filteredUsers.length}
+                            />
+                        </Card>
+                    </div>
 
-                    <UserTable
-                        users={filteredUsers}
-                        loading={loading}
-                        onManageRoles={handleManageRoles}
-                        onEditUser={handleEditUser}
-                        onDeleteUser={handleDeleteUser}
-                    />
-                </Card>
+                    {/* Scrollable table */}
+                    <Card bordered={false} className="shadow-sm rounded-lg">
+                        <UserTable
+                            users={filteredUsers}
+                            loading={loading}
+                            onManageRoles={handleManageRoles}
+                            onEditUser={handleEditUser}
+                            onDeleteUser={handleDeleteUser}
+                        />
+                    </Card>
 
                 <AssignUserRolesModal
                     visible={isRoleModalVisible}

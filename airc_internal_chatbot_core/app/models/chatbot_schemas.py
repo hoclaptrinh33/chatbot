@@ -99,8 +99,10 @@ class ChatbotCreate(BaseModel):
     # Knowledge linking
     dataset_ids: List[str] = Field(default_factory=list, description="Datasets linked to this chatbot")
     
-    # RBAC - Chỉ theo role, không theo user cụ thể
-    allowed_roles: List[str] = Field(default=["intern_guest", "employee", "admin"], description="Roles allowed to use this chatbot")
+    # Legacy compatibility field (không còn là nguồn kiểm tra quyền chính)
+    allowed_roles: List[str] = Field(default=["intern_guest", "employee", "admin"], description="Legacy roles field for backward compatibility")
+    allowed_user_ids: List[str] = Field(default_factory=list, description="Danh sách user được phép sử dụng chatbot")
+    allowed_departments: List[str] = Field(default_factory=list, description="Danh sách phòng ban được phép sử dụng chatbot")
     visibility: str = Field(default="public", description="public, private")
 
 
@@ -112,6 +114,8 @@ class ChatbotUpdate(BaseModel):
     config: Optional[ChatbotConfigModel] = None
     dataset_ids: Optional[List[str]] = None
     allowed_roles: Optional[List[str]] = None
+    allowed_user_ids: Optional[List[str]] = None
+    allowed_departments: Optional[List[str]] = None
     visibility: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -125,6 +129,8 @@ class ChatbotResponse(BaseModel):
     config: ChatbotConfigModel
     dataset_ids: List[str]
     allowed_roles: List[str]
+    allowed_user_ids: List[str]
+    allowed_departments: List[str]
     visibility: str
     owner_id: str
     is_active: bool = True

@@ -25,6 +25,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         if (visible && user) {
             form.setFieldsValue({
                 full_name: user.full_name,
+                department: user.department,
                 role: user.role,
                 is_active: user.is_active,
                 // password fields blank
@@ -38,6 +39,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         try {
             const payload: UpdateUserDto = {
                 full_name: values.full_name,
+                department: values.department?.trim() || undefined,
                 role: values.role, // Usually role is updated via AssignUserRolesModal but this is base role
                 is_active: values.is_active,
                 password: values.password || undefined // Only send if changed
@@ -46,16 +48,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             await authService.updateUser(user.id, payload, token);
 
             notification.success({
-                message: 'Thanh cong',
-                description: 'Cap nhat user thanh cong',
+                message: 'Thành công',
+                description: 'Cập nhật người dùng thành công',
             });
 
             onSuccess();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi',
-                description: err.response?.data?.detail || 'Khong the update user',
+                message: 'Lỗi',
+                description: err.response?.data?.detail || 'Không thể cập nhật người dùng',
             });
         } finally {
             setLoading(false);
@@ -64,13 +66,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
     return (
         <Modal
-            title={`Sua User: ${user?.email}`}
+            title={`Sửa người dùng: ${user?.email}`}
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Luu thay doi"
-            cancelText="Huy"
+            okText="Lưu thay đổi"
+            cancelText="Hủy"
         >
             <Form
                 form={form}
@@ -79,25 +81,32 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             >
                 <Form.Item
                     name="full_name"
-                    label="Ho va ten"
-                    rules={[{ required: true, message: 'Vui long nhap ho ten' }]}
+                    label="Họ và tên"
+                    rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
                 >
                     <Input />
                 </Form.Item>
 
                 <Form.Item
-                    name="password"
-                    label="Mat khau moi (De trong neu khong doi)"
+                    name="department"
+                    label="Phòng ban/Đơn vị"
                 >
-                    <Input.Password placeholder="Nhap mat khau moi" />
+                    <Input placeholder="Ví dụ: Phòng Kỹ thuật" />
+                </Form.Item>
+
+                <Form.Item
+                    name="password"
+                    label="Mật khẩu mới (để trống nếu không đổi)"
+                >
+                    <Input.Password placeholder="Nhập mật khẩu mới" />
                 </Form.Item>
 
                 <Form.Item
                     name="is_active"
                     valuePropName="checked"
-                    label="Trang thai hoat dong"
+                    label="Trạng thái hoạt động"
                 >
-                    <Checkbox>Kich hoat</Checkbox>
+                    <Checkbox>Kích hoạt</Checkbox>
                 </Form.Item>
             </Form>
         </Modal>

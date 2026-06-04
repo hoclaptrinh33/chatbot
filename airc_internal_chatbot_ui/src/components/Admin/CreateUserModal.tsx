@@ -27,14 +27,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 email: values.email,
                 password: values.password,
                 full_name: values.full_name,
+                department: values.department?.trim() || undefined,
                 role: values.role
             };
 
             await authService.createUser(payload, token);
 
             notification.success({
-                message: 'Thanh cong',
-                description: 'Tao user moi thanh cong',
+                message: 'Thành công',
+                description: 'Tạo người dùng mới thành công',
             });
 
             form.resetFields();
@@ -42,8 +43,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi',
-                description: err.response?.data?.detail || 'Khong the tao user',
+                message: 'Lỗi',
+                description: err.response?.data?.detail || 'Không thể tạo người dùng',
             });
         } finally {
             setLoading(false);
@@ -52,13 +53,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
     return (
         <Modal
-            title="Tao User Moi"
+            title="Tạo người dùng mới"
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Tao moi"
-            cancelText="Huy"
+            okText="Tạo mới"
+            cancelText="Hủy"
         >
             <Form
                 form={form}
@@ -70,8 +71,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                     name="email"
                     label="Email"
                     rules={[
-                        { required: true, message: 'Vui long nhap email' },
-                        { type: 'email', message: 'Email khong hop le' }
+                        { required: true, message: 'Vui lòng nhập email' },
+                        { type: 'email', message: 'Email không hợp lệ' }
                     ]}
                 >
                     <Input placeholder="user@example.com" />
@@ -79,24 +80,31 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
                 <Form.Item
                     name="full_name"
-                    label="Ho va ten"
-                    rules={[{ required: true, message: 'Vui long nhap ho ten' }]}
+                    label="Họ và tên"
+                    rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
                 >
                     <Input placeholder="Nguyen Van A" />
                 </Form.Item>
 
                 <Form.Item
+                    name="department"
+                    label="Phòng ban/Đơn vị"
+                >
+                    <Input placeholder="Ví dụ: Phòng Kỹ thuật" />
+                </Form.Item>
+
+                <Form.Item
                     name="password"
-                    label="Mat khau"
-                    rules={[{ required: true, message: 'Vui long nhap mat khau', min: 6 }]}
+                    label="Mật khẩu"
+                    rules={[{ required: true, message: 'Vui lòng nhập mật khẩu', min: 6 }]}
                 >
                     <Input.Password placeholder="Password123" />
                 </Form.Item>
 
                 <Form.Item
                     name="role"
-                    label="Vai tro khoi tao"
-                    rules={[{ required: true, message: 'Vui long chon vai tro' }]}
+                    label="Vai trò khởi tạo"
+                    rules={[{ required: true, message: 'Vui lòng chọn vai trò' }]}
                 >
                     <Select>
                         <Select.Option value="intern_guest">Thực tập sinh/Khách</Select.Option>

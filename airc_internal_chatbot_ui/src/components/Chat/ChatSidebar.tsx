@@ -34,7 +34,7 @@ export default function ChatSidebar({ className }: ChatSidebarProps) {
             title={
                 <div className="flex items-center gap-2">
                     <DatabaseOutlined className="text-red-700" />
-                    <span>Chon Datasets</span>
+                    <span>Chọn Dataset</span>
                 </div>
             }
             className={`border-0 shadow-none bg-transparent ${className || ''}`}
@@ -43,7 +43,7 @@ export default function ChatSidebar({ className }: ChatSidebarProps) {
         >
             <div className="px-3 mb-4">
                 <Input
-                    placeholder="Tim datasets..."
+                    placeholder="Tìm dataset..."
                     prefix={<SearchOutlined className="text-gray-400" />}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
@@ -71,13 +71,13 @@ export default function ChatSidebar({ className }: ChatSidebarProps) {
                                             {item.name}
                                         </div>
                                         <div className="text-xs text-gray-400 truncate">
-                                            {item.description || 'No description'}
+                                            {item.description || 'Chưa có mô tả'}
                                         </div>
                                     </div>
                                 </Checkbox>
                             </List.Item>
                         )}
-                        locale={{ emptyText: 'Khong co datasets' }}
+                        locale={{ emptyText: 'Không có dataset' }}
                     />
                 </div>
             )}

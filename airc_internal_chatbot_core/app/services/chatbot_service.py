@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChatbotService:
-    """Service layer cho chatbot operations với RBAC"""
+    """Service layer cho chatbot operations và access control theo user/phòng ban."""
     
     def __init__(
         self,
@@ -21,6 +21,29 @@ class ChatbotService:
     ):
         self.chatbot_repo = chatbot_repo
         self.dataset_repo = dataset_repo
+
+    @staticmethod
+    def _has_chatbot_access(chatbot: dict, user_id: str, user_role: str, user_department: Optional[str] = None) -> bool:
+        """Kiểm tra quyền truy cập chatbot theo user/phòng ban."""
+        if user_role == "admin":
+            return True
+
+        allowed_user_ids = chatbot.get("allowed_user_ids", []) or []
+        allowed_departments = chatbot.get("allowed_departments", []) or []
+
+        # Không cấu hình user/department => private, chỉ admin dùng được.
+        if not allowed_user_ids and not allowed_departments:
+            return False
+
+        if user_id in allowed_user_ids:
+            return True
+
+        normalized_user_department = (user_department or "").strip().lower()
+        if not normalized_user_department:
+            return False
+
+        normalized_allowed_departments = [str(dep).strip().lower() for dep in allowed_departments if dep]
+        return normalized_user_department in normalized_allowed_departments
     
     async def create_chatbot(
         self,
@@ -61,6 +84,8 @@ class ChatbotService:
             config=config_dict,
             dataset_ids=data.dataset_ids,
             allowed_roles=data.allowed_roles,
+            allowed_user_ids=data.allowed_user_ids,
+            allowed_departments=data.allowed_departments,
             visibility=data.visibility,
             owner_id=creator_id
         )
@@ -71,14 +96,15 @@ class ChatbotService:
     async def get_available_chatbots(
         self,
         user_id: str,
-        user_role: str
+        user_role: str,
+        user_department: Optional[str] = None
     ) -> List[dict]:
         """
-        Lấy chatbots available cho user dựa trên role (RBAC filtering)
+        Lấy chatbots available cho user theo access policy.
         
         Logic:
         - Admin: Thấy tất cả chatbots
-        - Employee/Intern_Guest: Chỉ thấy chatbots có allowed_roles chứa role của họ
+        - Non-admin: Chỉ thấy chatbots có user_id hoặc department được cấp quyền
         
         Args:
             user_id: User ID
@@ -88,13 +114,20 @@ class ChatbotService:
         if user_role == "admin":
             chatbots = await self.chatbot_repo.get_all(is_active=True)
         else:
-            # Non-admin: Lấy chatbots mà role được phép
-            chatbots = await self.chatbot_repo.get_available_for_role(role=user_role)
+            # Non-admin: Lấy chatbots theo allow-list user/phòng ban.
+            chatbots = await self.chatbot_repo.get_available_for_user(
+                user_id=user_id,
+                department=user_department
+            )
         
         # ✅ SYNC FIX: Normalize dataset_ids to ensure UI gets consistent array
         for chatbot in chatbots:
             if "dataset_ids" not in chatbot or chatbot["dataset_ids"] is None:
                 chatbot["dataset_ids"] = []
+            if "allowed_user_ids" not in chatbot or chatbot["allowed_user_ids"] is None:
+                chatbot["allowed_user_ids"] = []
+            if "allowed_departments" not in chatbot or chatbot["allowed_departments"] is None:
+                chatbot["allowed_departments"] = []
         
         return chatbots
     
@@ -102,7 +135,8 @@ class ChatbotService:
         self,
         chatbot_id: str,
         user_role: str,
-        user_id: str
+        user_id: str,
+        user_department: Optional[str] = None
     ) -> Optional[dict]:
         """
         Lấy chatbot detail - check permission
@@ -118,13 +152,16 @@ class ChatbotService:
         # ✅ SYNC FIX: Normalize dataset_ids
         if "dataset_ids" not in chatbot or chatbot["dataset_ids"] is None:
             chatbot["dataset_ids"] = []
+        if "allowed_user_ids" not in chatbot or chatbot["allowed_user_ids"] is None:
+            chatbot["allowed_user_ids"] = []
+        if "allowed_departments" not in chatbot or chatbot["allowed_departments"] is None:
+            chatbot["allowed_departments"] = []
         
         # Admin bypass
         if user_role == "admin":
             return chatbot
         
-        # Check RBAC - chỉ theo role
-        if user_role not in chatbot.get("allowed_roles", []):
+        if not self._has_chatbot_access(chatbot, user_id, user_role, user_department):
             raise PermissionError("You don't have permission to view this chatbot")
         
         return chatbot
@@ -226,17 +263,3 @@ class ChatbotService:
         # Return updated chatbot
         return await self.chatbot_repo.get_by_id(chatbot_id)
 
-    async def get_roles_with_chatbot_assigned(
-        self,
-        exclude_chatbot_id: Optional[str] = None
-    ) -> List[str]:
-        """
-        Lấy danh sách roles đã được assign chatbot
-        
-        Args:
-            exclude_chatbot_id: Loại trừ chatbot này (dùng khi update)
-            
-        Returns:
-            List roles đã có chatbot (trừ admin vì admin được nhiều)
-        """
-        return await self.chatbot_repo.get_roles_with_chatbot_assigned(exclude_chatbot_id)

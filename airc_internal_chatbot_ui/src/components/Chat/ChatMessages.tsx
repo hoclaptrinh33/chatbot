@@ -67,13 +67,13 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
             {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400">
                     <div className="mb-4">
-                        <Image src="/logo_airc.jpg" alt="AIRC Logo" width={120} height={120} className="rounded-full" />
+                        <Image src="/logo_airc.jpg" alt="Logo AIRC" width={120} height={120} className="rounded-full" />
                     </div>
                     <Text type="secondary" className="text-lg">
-                        Bat dau tro chuyen voi AIRC Assistant
+                        Bắt đầu trò chuyện với trợ lý AIRC
                     </Text>
                     <Text type="secondary" className="text-sm">
-                        Chon dataset ben trai va dat cau hoi.
+                        Chọn dataset bên trái và đặt câu hỏi.
                     </Text>
                 </div>
             )}
@@ -140,7 +140,7 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
                         />
                         <div className="bg-white p-4 rounded-lg rounded-tl-none border border-gray-100 shadow-sm">
                             <Spin size="small" />
-                            <span className="ml-2 text-gray-500 text-sm">AI dang suy nghi...</span>
+                            <span className="ml-2 text-gray-500 text-sm">AI đang suy nghĩ...</span>
                         </div>
                     </div>
                 </div>

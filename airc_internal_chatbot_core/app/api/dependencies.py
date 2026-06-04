@@ -51,6 +51,7 @@ async def verify_token_with_auth_service(token: str) -> User:
                     user_id=user_id,
                     email=user_data.get("email", ""),
                     full_name=user_data.get("full_name", ""),
+                    department=user_data.get("department"),
                     role=role,
                     is_active=user_data.get("is_active", True)
                 )

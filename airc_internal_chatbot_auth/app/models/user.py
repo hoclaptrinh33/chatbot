@@ -103,6 +103,7 @@ class UserBase(BaseModel):
     """Base user schema"""
     email: EmailStr
     full_name: str
+    department: Optional[str] = None
     role: UserRole = UserRole.INTERN_GUEST
     is_active: bool = True
 
@@ -112,12 +113,14 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     full_name: str
+    department: Optional[str] = None
     role: UserRole = UserRole.INTERN_GUEST
 
 
 class UserUpdate(BaseModel):
     """Schema cho update user"""
     full_name: Optional[str] = None
+    department: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None

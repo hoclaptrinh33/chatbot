@@ -55,15 +55,6 @@ class ChatbotService {
         return response.data;
     }
 
-    /**
-     * Lấy danh sách roles đã được assign chatbot
-     * Dùng để disable trong form create/edit (mỗi role trừ admin chỉ được 1 chatbot)
-     */
-    async getRolesWithChatbot(excludeChatbotId?: string): Promise<string[]> {
-        const params = excludeChatbotId ? { exclude_chatbot_id: excludeChatbotId } : {};
-        const response = await coreClient.get<string[]>('/chatbots/meta/roles-with-chatbot', { params });
-        return response.data;
-    }
 }
 
 export const chatbotService = new ChatbotService();

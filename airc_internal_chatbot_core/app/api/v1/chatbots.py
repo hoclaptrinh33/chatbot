@@ -13,7 +13,7 @@ from app.models.schemas import SuccessResponse
 from app.services.chatbot_service import ChatbotService
 from app.api.dependencies import get_chatbot_service, get_current_user
 from app.models.auth import User
-from typing import List, Optional
+from typing import List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -55,45 +55,21 @@ async def list_chatbots(
     chatbot_service: ChatbotService = Depends(get_chatbot_service)
 ):
     """
-    Lấy danh sách chatbots available (filtered by role - RBAC)
+    Lấy danh sách chatbots available theo user/phòng ban.
     
     - Admin: see all chatbots
-    - Teacher/Student: see chatbots với allowed_roles matching
+    - Non-admin: see chatbots theo allow-list user_id hoặc department
     """
     try:
         chatbots = await chatbot_service.get_available_chatbots(
             user_id=current_user.user_id,
-            user_role=current_user.role
+            user_role=current_user.role,
+            user_department=current_user.department
         )
         return [ChatbotResponse(**cb) for cb in chatbots]
     
     except Exception as e:
         logger.exception("Error listing chatbots")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/meta/roles-with-chatbot", response_model=List[str])
-async def get_roles_with_chatbot(
-    exclude_chatbot_id: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    chatbot_service: ChatbotService = Depends(get_chatbot_service)
-):
-    """
-    Lấy danh sách roles đã được assign chatbot - ADMIN ONLY
-    
-    Dùng để disable roles trong UI create/edit chatbot form
-    (Mỗi role trừ admin chỉ được dùng 1 chatbot)
-    """
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-    
-    try:
-        roles = await chatbot_service.get_roles_with_chatbot_assigned(
-            exclude_chatbot_id=exclude_chatbot_id
-        )
-        return roles
-    except Exception as e:
-        logger.exception("Error getting roles with chatbot")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -103,14 +79,13 @@ async def get_chatbot(
     current_user: User = Depends(get_current_user),
     chatbot_service: ChatbotService = Depends(get_chatbot_service)
 ):
-    """
-    Lấy chatbot detail (permission check theo RBAC)
-    """
+    """Lấy chatbot detail (permission check theo user/phòng ban)."""
     try:
         chatbot = await chatbot_service.get_chatbot(
             chatbot_id=chatbot_id,
             user_role=current_user.role,
-            user_id=current_user.user_id
+            user_id=current_user.user_id,
+            user_department=current_user.department
         )
         
         if not chatbot:

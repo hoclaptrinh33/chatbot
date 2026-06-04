@@ -51,6 +51,8 @@ export interface Chatbot {
     config: ChatbotConfig;
     dataset_ids: string[];
     allowed_roles: string[];
+    allowed_user_ids: string[];
+    allowed_departments: string[];
     visibility: 'public' | 'private';
     owner_id: string;
     is_active: boolean;
@@ -65,6 +67,8 @@ export interface ChatbotCreate {
     config?: Partial<ChatbotConfig>;
     dataset_ids?: string[];
     allowed_roles?: string[];
+    allowed_user_ids?: string[];
+    allowed_departments?: string[];
     visibility?: 'public' | 'private';
 }
 
@@ -75,6 +79,8 @@ export interface ChatbotUpdate {
     config?: Partial<ChatbotConfig>;
     dataset_ids?: string[];
     allowed_roles?: string[];
+    allowed_user_ids?: string[];
+    allowed_departments?: string[];
     visibility?: 'public' | 'private';
     is_active?: boolean;
 }

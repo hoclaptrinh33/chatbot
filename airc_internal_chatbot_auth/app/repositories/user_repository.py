@@ -18,6 +18,7 @@ class UserRepository(BaseRepository):
         email: str,
         hashed_password: str,
         full_name: str,
+        department: Optional[str] = None,
         role: str = "intern_guest"
     ) -> dict:
         """
@@ -36,6 +37,7 @@ class UserRepository(BaseRepository):
             "email": email,
             "hashed_password": hashed_password,
             "full_name": full_name,
+            "department": department,
             "role": role,
             "is_active": True,
             "created_at": datetime.utcnow()
@@ -104,7 +106,7 @@ class UserRepository(BaseRepository):
         update_data["updated_at"] = datetime.utcnow()
         return await self.update_one({"_id": oid}, update_data)
     
-    async def get_all_users(self, limit: int = 100) -> List[dict]:
+    async def get_all_users(self, limit: int = 100, department: Optional[str] = None) -> List[dict]:
         """
         Lấy danh sách tất cả users
         
@@ -114,7 +116,11 @@ class UserRepository(BaseRepository):
         Returns:
             List of users
         """
-        docs = await self.find_many({}, limit=limit)
+        query = {}
+        if department is not None:
+            query["department"] = department
+
+        docs = await self.find_many(query, limit=limit)
         return self.serialize_docs(docs)
     async def delete_user(self, user_id: str) -> bool:
         """

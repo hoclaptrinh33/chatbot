@@ -14,6 +14,21 @@ import { Chatbot } from '@/types/chatbot';
 const { TextArea } = Input;
 const { Text } = Typography;
 
+const hasChatbotAccess = (chatbot: Chatbot, userId: string, role?: string, department?: string) => {
+    const normalizedRole = String(role || '').toLowerCase();
+    if (normalizedRole === 'admin') return true;
+
+    const allowedUserIds = chatbot.allowed_user_ids || [];
+    const allowedDepartments = (chatbot.allowed_departments || []).map((dep) => dep.toLowerCase());
+    const normalizedDepartment = String(department || '').trim().toLowerCase();
+
+    if (allowedUserIds.length === 0 && allowedDepartments.length === 0) {
+        return false;
+    }
+
+    return allowedUserIds.includes(userId) || (normalizedDepartment !== '' && allowedDepartments.includes(normalizedDepartment));
+};
+
 /**
  * Component Chat cho Student/Teacher - Giao diện AIRC màu đỏ
  */
@@ -74,11 +89,14 @@ export default function StudentChat() {
             try {
                 // Load chatbot for this user - API trả về chatbot theo role/user
                 const chatbots = await chatbotService.getChatbots();
-                console.log('[StudentChat] Available chatbots for user:', chatbots.map(c => ({ id: c.id, name: c.name })));
+                const filteredChatbots = chatbots.filter((bot) =>
+                    hasChatbotAccess(bot, user.id, String(user.role), user.department)
+                );
+                console.log('[StudentChat] Available chatbots for user:', filteredChatbots.map(c => ({ id: c.id, name: c.name })));
 
-                if (chatbots.length > 0) {
+                if (filteredChatbots.length > 0) {
                     // Luôn chọn chatbot đầu tiên được trả về (đã lọc theo user)
-                    const chatbot = chatbots[0];
+                    const chatbot = filteredChatbots[0];
                     selectChatbot(chatbot.id, chatbot.dataset_ids);
                     setSelectedChatbot(chatbot); // CRITICAL: Track locally
                     setNoChatbotAvailable(false);

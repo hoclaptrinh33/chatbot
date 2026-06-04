@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Input, Button, Typography,
-    Card, Space, Avatar, Spin, Select
+    Card, Space, Avatar, Spin, Select, Alert
 } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
 import Image from 'next/image';
@@ -21,6 +21,21 @@ import RAGDebugPanel from '@/components/Chat/RAGDebugPanel';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
+
+const hasChatbotAccess = (chatbot: Chatbot, userId: string, role?: string, department?: string) => {
+    const normalizedRole = String(role || '').toLowerCase();
+    if (normalizedRole === 'admin') return true;
+
+    const allowedUserIds = chatbot.allowed_user_ids || [];
+    const allowedDepartments = (chatbot.allowed_departments || []).map((dep) => dep.toLowerCase());
+    const normalizedDepartment = String(department || '').trim().toLowerCase();
+
+    if (allowedUserIds.length === 0 && allowedDepartments.length === 0) {
+        return false;
+    }
+
+    return allowedUserIds.includes(userId) || (normalizedDepartment !== '' && allowedDepartments.includes(normalizedDepartment));
+};
 
 export default function ChatPage() {
     const { user } = useAuthStore();
@@ -51,13 +66,16 @@ export default function ChatPage() {
             try {
                 // Fetch Chatbots - API trả về theo role/user
                 const data = await chatbotService.getChatbots();
-                setChatbots(data);
-                console.log('[ChatPage] Available chatbots:', data.map(c => ({ id: c.id, name: c.name })));
+                const filtered = data.filter((bot) => hasChatbotAccess(bot, user.id, String(user.role), user.department));
+                setChatbots(filtered);
+                console.log('[ChatPage] Available chatbots:', filtered.map(c => ({ id: c.id, name: c.name })));
 
                 // Luôn chọn chatbot đầu tiên
-                if (data.length > 0) {
-                    selectChatbot(data[0].id, data[0].dataset_ids);
-                    console.log('[ChatPage] Selected chatbot:', data[0].name);
+                if (filtered.length > 0) {
+                    selectChatbot(filtered[0].id, filtered[0].dataset_ids);
+                    console.log('[ChatPage] Selected chatbot:', filtered[0].name);
+                } else {
+                    selectChatbot(null, []);
                 }
 
                 // Fetch datasets and sessions
@@ -85,6 +103,7 @@ export default function ChatPage() {
 
     const handleSend = async () => {
         if (!input.trim() || chatLoading) return;
+        if (!chatbotId) return;
 
         const question = input;
         setInput('');
@@ -137,7 +156,7 @@ export default function ChatPage() {
                         <Space>
                             <Image
                                 src="/logo_airc.jpg"
-                                alt="AIRC Logo"
+                                alt="Logo AIRC"
                                 width={48}
                                 height={48}
                                 className="object-contain"
@@ -145,7 +164,7 @@ export default function ChatPage() {
                             <div>
                                 {chatbots.length > 1 ? (
                                     <Space direction="vertical" size={0}>
-                                        <Text type="secondary" className="text-xs">Current Assistant</Text>
+                                        <Text type="secondary" className="text-xs">Trợ lý hiện tại</Text>
                                         <Select
                                             value={chatbotId}
                                             onChange={handleChatbotChange}
@@ -161,12 +180,22 @@ export default function ChatPage() {
                                     </Space>
                                 ) : (
                                     <Title level={5} className="mb-0">
-                                        {currentChatbot?.name || "AIRC Assistant"}
+                                        {currentChatbot?.name || 'Chưa có chatbot'}
                                     </Title>
                                 )}
                             </div>
                         </Space>
                     </div>
+
+                    {chatbots.length === 0 && (
+                        <div className="px-4 pt-4">
+                            <Alert
+                                type="warning"
+                                showIcon
+                                message="Tài khoản của bạn hiện chưa được cấp quyền chatbot nào. Vui lòng liên hệ quản trị viên."
+                            />
+                        </div>
+                    )}
 
                     {/* Messages List */}
                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
@@ -175,7 +204,7 @@ export default function ChatPage() {
                                 <div className="w-24 h-24 mb-6">
                                     <Image
                                         src="/logo_airc.jpg"
-                                        alt="AIRC Logo"
+                                        alt="Logo AIRC"
                                         width={96}
                                         height={96}
                                         className="object-contain"
@@ -250,13 +279,14 @@ export default function ChatPage() {
                                 icon={<SendOutlined />}
                                 onClick={handleSend}
                                 loading={chatLoading}
+                                disabled={!chatbotId}
                                 className="h-auto bg-red-600 hover:bg-red-700 border-none"
                             >
                                 Gửi
                             </Button>
                         </div>
                         <div className="mt-2 text-xs text-gray-400 text-center">
-                            AIRC Assistant có thể mắc lỗi. Vui lòng kiểm tra lại thông tin quan trọng.
+                            Chatbot có thể mắc lỗi. Vui lòng kiểm tra lại thông tin quan trọng.
                         </div>
                     </div>
                 </Card>

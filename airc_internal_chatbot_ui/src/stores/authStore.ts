@@ -76,7 +76,7 @@ const useAuthStore = create<AuthState>()(
                 } catch (error: unknown) {
                     console.error('[AuthStore] Login failed:', error);
                     const err = error as AxiosError<{ detail: string }>;
-                    const errorMsg = err.response?.data?.detail || err.message || 'Dang nhap that bai';
+                    const errorMsg = err.response?.data?.detail || err.message || 'Đăng nhập thất bại';
 
                     set({
                         error: errorMsg,
@@ -116,14 +116,18 @@ const useAuthStore = create<AuthState>()(
              * Vi neu vua login xong ma API /me bi loi, se mat het state
              */
             checkAuth: async () => {
-                const { token } = get();
+                const stateToken = get().token;
+                const token = stateToken || storageService.getAccessToken();
 
                 // Neu khong co token thi khong lam gi
                 if (!token) {
-                    // Try to restore from cookie via StorageService if localStorage empty? 
-                    // For now, stick to localStorage as primary source of truth for Zustand Persist.
                     console.log('[AuthStore] checkAuth: No token found, skipping');
                     return;
+                }
+
+                // Dong bo token vao store neu hydrate chua xong nhung storage da co token
+                if (!stateToken) {
+                    set({ token });
                 }
 
                 try {
@@ -167,6 +171,6 @@ const useAuthStore = create<AuthState>()(
     )
 );
 
-export const getAuthToken = () => useAuthStore.getState().token;
+export const getAuthToken = () => useAuthStore.getState().token || storageService.getAccessToken();
 
 export default useAuthStore;

@@ -63,7 +63,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
     const totalNonZero = metrics.total_time_ms || 1;
     const timeBreakdown = [
         { label: 'Embedding', time: metrics.embedding_time_ms, color: '#1890ff' },
-        { label: 'Retrieval', time: metrics.retrieval_time_ms, color: '#13c2c2' },
+        { label: 'Truy xuất', time: metrics.retrieval_time_ms, color: '#13c2c2' },
         { label: 'Reranking', time: metrics.rerank_time_ms, color: '#722ed1' },
         { label: 'LLM', time: metrics.llm_time_ms, color: '#fa8c16' },
     ];
@@ -79,9 +79,9 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                     key: '1',
                     label: (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 }}>
-                            <span style={{ fontWeight: 500, color: '#666' }}>Debug Info</span>
+                            <span style={{ fontWeight: 500, color: '#666' }}>Thông tin debug</span>
                             <Tag color={metrics.cache_hit ? 'green' : 'default'} style={{ margin: 0 }}>
-                                {metrics.cache_hit ? 'Cache Hit' : 'Fresh'}
+                                {metrics.cache_hit ? 'Cache hit' : 'Mới'}
                             </Tag>
                             <span style={{ color: '#999' }}>
                                 <ClockCircleOutlined /> {formatTime(metrics.total_time_ms)}
@@ -93,7 +93,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                             )}
                             {metrics.top_similarity_score > 0 && (
                                 <span style={{ color: getScoreColor(metrics.top_similarity_score) }}>
-                                    Score: {(metrics.top_similarity_score * 100).toFixed(0)}%
+                                    Điểm: {(metrics.top_similarity_score * 100).toFixed(0)}%
                                 </span>
                             )}
                         </div>
@@ -163,7 +163,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                             {/* Retrieval Stats */}
                             <div style={{ marginBottom: 16 }}>
                                 <div style={{ fontWeight: 500, marginBottom: 8, color: '#333' }}>
-                                    Retrieval
+                                    Truy xuất
                                 </div>
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <tbody>
@@ -178,12 +178,12 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                                             <td style={{ padding: '4px 0', textAlign: 'right', fontFamily: 'monospace' }}>
                                                 {metrics.chunks_found}
                                                 {metrics.no_context && (
-                                                    <Tag color="warning" style={{ marginLeft: 8 }}>No Context</Tag>
+                                                    <Tag color="warning" style={{ marginLeft: 8 }}>Không có ngữ cảnh</Tag>
                                                 )}
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td style={{ padding: '4px 0', color: '#666' }}>Top Similarity</td>
+                                            <td style={{ padding: '4px 0', color: '#666' }}>Độ tương đồng cao nhất</td>
                                             <td style={{ padding: '4px 0', textAlign: 'right' }}>
                                                 <Tooltip title={getScoreLabel(metrics.top_similarity_score)}>
                                                     <span style={{
@@ -197,7 +197,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td style={{ padding: '4px 0', color: '#666' }}>Avg Similarity</td>
+                                            <td style={{ padding: '4px 0', color: '#666' }}>Độ tương đồng trung bình</td>
                                             <td style={{ padding: '4px 0', textAlign: 'right' }}>
                                                 <span style={{
                                                     fontFamily: 'monospace',
@@ -214,7 +214,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                             {/* Model Info */}
                             <div>
                                 <div style={{ fontWeight: 500, marginBottom: 8, color: '#333' }}>
-                                    Model
+                                    Mô hình
                                 </div>
                                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     {metrics.model_used && (
@@ -229,7 +229,7 @@ export default function DebugPanel({ metrics, className = '' }: DebugPanelProps)
                                     )}
                                     {metrics.cache_hit && (
                                         <Tag icon={<CheckCircleOutlined />} color="green">
-                                            Cached Response
+                                            Phản hồi từ cache
                                         </Tag>
                                     )}
                                 </div>

@@ -75,14 +75,14 @@ export default function LoginPage() {
                         <div className="flex justify-center mb-4 relative h-16 w-full">
                             <Image
                                 src="/logo_airc.jpg"
-                                alt="AIRC Logo"
+                                alt="Logo AIRC"
                                 fill
                                 className="object-contain"
                                 priority
                                 sizes="(max-width: 768px) 100vw, 33vw"
                             />
                         </div>
-                        <Title level={2} style={{ color: '#c82b2b' }}>AIRC Internal Chatbot</Title>
+                        <Title level={2} style={{ color: '#c82b2b' }}>AIRC chatbot nội bộ</Title>
                         <Text type="secondary">Đăng nhập vào hệ thống nội bộ</Text>
                     </div>
 

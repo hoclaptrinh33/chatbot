@@ -46,7 +46,7 @@ export default function RegisterPage() {
                 <div className="flex justify-center mb-4 relative h-16 w-full">
                     <Image
                         src="/logo_airc.jpg"
-                        alt="AIRC Logo"
+                        alt="Logo AIRC"
                         fill
                         className="object-contain"
                         priority

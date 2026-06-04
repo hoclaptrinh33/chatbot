@@ -20,7 +20,7 @@ const UserTable: React.FC<UserTableProps> = ({
 }) => {
     const columns = [
         {
-            title: 'Ho va Ten',
+            title: 'Họ và tên',
             dataIndex: 'full_name',
             key: 'full_name',
             render: (text: string) => <span className="font-medium">{text}</span>
@@ -31,7 +31,7 @@ const UserTable: React.FC<UserTableProps> = ({
             key: 'email',
         },
         {
-            title: 'Base Role',
+            title: 'Vai trò',
             dataIndex: 'role',
             key: 'role',
             render: (role: string) => {
@@ -47,17 +47,23 @@ const UserTable: React.FC<UserTableProps> = ({
             }
         },
         {
-            title: 'Trang thai',
+            title: 'Phòng ban/Đơn vị',
+            dataIndex: 'department',
+            key: 'department',
+            render: (department?: string) => department || 'Chưa cập nhật'
+        },
+        {
+            title: 'Trạng thái',
             dataIndex: 'is_active',
             key: 'is_active',
             render: (active: boolean) => (
                 <Tag color={active ? 'success' : 'error'}>
-                    {active ? 'ACTIVE' : 'INACTIVE'}
+                    {active ? 'ĐANG HOẠT ĐỘNG' : 'TẠM KHÓA'}
                 </Tag>
             )
         },
         {
-            title: 'Hanh dong',
+            title: 'Hành động',
             key: 'action',
             render: (_: unknown, record: User) => (
                 <Space size="small">
@@ -66,19 +72,19 @@ const UserTable: React.FC<UserTableProps> = ({
                         onClick={() => onManageRoles(record)}
                         className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
                     >
-                        Roles
+                        Vai trò
                     </Button>
                     <Button
                         icon={<EditOutlined />}
                         onClick={() => onEditUser(record)}
                     >
-                        Sua
+                        Sửa
                     </Button>
                     <Popconfirm
-                        title="Ban co chac muon xoa user nay?"
+                        title="Bạn có chắc muốn xóa người dùng này?"
                         onConfirm={() => onDeleteUser(record)}
-                        okText="Xoa"
-                        cancelText="Huy"
+                        okText="Xóa"
+                        cancelText="Hủy"
                     >
                         <Button
                             danger

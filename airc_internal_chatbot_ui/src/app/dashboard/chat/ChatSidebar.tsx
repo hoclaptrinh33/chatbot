@@ -52,11 +52,11 @@ export default function ChatSidebar({ className }: { className?: string }) {
     // Xóa session với confirmation
     const handleDelete = (id: string) => {
         Modal.confirm({
-            title: 'Xoa doan chat nay?',
-            content: 'Ban khong the khoi phuc sau khi xoa.',
-            okText: 'Xoa',
+            title: 'Xóa đoạn chat này?',
+            content: 'Bạn không thể khôi phục sau khi xóa.',
+            okText: 'Xóa',
             okType: 'danger',
-            cancelText: 'Huy',
+            cancelText: 'Hủy',
             onOk: () => deleteSession(id)
         });
     };
@@ -69,7 +69,7 @@ export default function ChatSidebar({ className }: { className?: string }) {
         const menuItems: MenuProps['items'] = [
             {
                 key: 'rename',
-                label: 'Doi ten',
+                label: 'Đổi tên',
                 icon: <EditOutlined />,
                 onClick: ({ domEvent }) => {
                     domEvent.stopPropagation();
@@ -78,7 +78,7 @@ export default function ChatSidebar({ className }: { className?: string }) {
             },
             {
                 key: 'delete',
-                label: 'Xoa',
+                label: 'Xóa',
                 icon: <DeleteOutlined />,
                 danger: true,
                 onClick: ({ domEvent }) => {
@@ -158,11 +158,11 @@ export default function ChatSidebar({ className }: { className?: string }) {
                     onClick={handleCreateSession}
                     size="large"
                 >
-                    Chat moi
+                    Chat mới
                 </Button>
                 <Input
                     prefix={<SearchOutlined className="text-gray-400" />}
-                    placeholder="Tim kiem doan chat..."
+                    placeholder="Tìm kiếm đoạn chat..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     allowClear
@@ -174,7 +174,7 @@ export default function ChatSidebar({ className }: { className?: string }) {
                 {filteredSessions.length === 0 ? (
                     <div className="text-center text-gray-400 mt-10">
                         <MessageOutlined style={{ fontSize: 30, marginBottom: 10 }} />
-                        <p>{searchTerm ? 'Khong tim thay ket qua' : 'Chua co doan chat nao'}</p>
+                        <p>{searchTerm ? 'Không tìm thấy kết quả' : 'Chưa có đoạn chat nào'}</p>
                     </div>
                 ) : (
                     <div className="flex flex-col">

@@ -239,7 +239,8 @@ async def verify_token(
             "id": str(user.id),
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role
+            "role": user.role,
+            "department": user.department,
         }
         
     except HTTPException:
@@ -281,6 +282,7 @@ async def get_me(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
+        department=current_user.department,
         role=current_user.role,
         is_active=current_user.is_active,
         created_at=current_user.created_at
@@ -307,7 +309,8 @@ async def get_my_permissions(
 async def list_users(
     current_user: Annotated[UserInDB, Depends(get_employee_or_admin)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
-    role: Optional[str] = None
+    role: Optional[str] = None,
+    department: Optional[str] = None
 ):
     """
     Lấy danh sách users theo quyền hiện tại
@@ -331,13 +334,19 @@ async def list_users(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Employee can only query intern_guest users"
                 )
+            if department:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Employee cannot filter users by department"
+                )
 
-        users = await auth_service.get_all_users(role_code=role)
+        users = await auth_service.get_all_users(role_code=role, department=department)
         return [
             UserResponse(
                 id=u.id,
                 email=u.email,
                 full_name=u.full_name,
+                department=u.department,
                 role=u.role,
                 is_active=u.is_active,
                 created_at=u.created_at
@@ -364,6 +373,7 @@ async def create_user_admin(
             id=str(user["id"]),
             email=user["email"],
             full_name=user["full_name"],
+            department=user.get("department"),
             role=user["role"],
             is_active=user["is_active"],
             created_at=user["created_at"]
@@ -397,6 +407,7 @@ async def update_user_admin(
             id=updated_user.id,
             email=updated_user.email,
             full_name=updated_user.full_name,
+            department=updated_user.department,
             role=updated_user.role,
             is_active=updated_user.is_active,
             created_at=updated_user.created_at

@@ -55,7 +55,7 @@ class ChatService:
         history: Optional[List[Dict]] = None,
         session_id: Optional[str] = None,
         chatbot_id: Optional[str] = None, # NEW: Chatbot ID
-        user_context: Optional[Dict] = None # NEW: User Context for RBAC
+        user_context: Optional[Dict] = None # NEW: User Context for access policy (user/department)
     ) -> Dict[str, Any]:
         """
         Xử lý câu hỏi của người dùng theo quy trình RAG chuẩn.
@@ -104,33 +104,14 @@ class ChatService:
         requested_datasets = bool(dataset_ids)
         logger.info(f"[CHAT] Xử lý câu hỏi: '{question[:50]}...' | Datasets: {len(dataset_ids)} | Session: {session_id}")
 
-        # 2. Check Semantic Cache (Tối ưu performance)
-        # CRITICAL: Cache key MUST include chatbot_id to prevent cross-bot pollution
-        start_embed = time.time()
-        q_embedding = self._try_embed_question(question)
-        debug_metrics["embedding_time_ms"] = round((time.time() - start_embed) * 1000, 2)
-        
-        cache_key_suffix = f"_bot_{chatbot_id}" if chatbot_id else ""
-        
-        if q_embedding is not None:
-            cached_resp = semantic_cache_service.get(question, q_embedding, suffix=cache_key_suffix)
-            if cached_resp:
-                logger.info(f"[CHAT] Cache HIT (chatbot={chatbot_id}) - Trả về kết quả đã lưu.")
-                # Save cached answer if session exists
-                if session_id and self.session_repo:
-                     await self.session_repo.add_message(session_id, "assistant", cached_resp)
-                
-                debug_metrics["cache_hit"] = True
-                debug_metrics["total_time_ms"] = round((time.time() - start_total) * 1000, 2)
-                return self._format_response(question, cached_resp, [], [], cached=True, debug_metrics=debug_metrics)
-
-        # 3. Retrieval Process (Tìm kiếm dữ liệu từ Datasets)
+        # 2. Prepare chatbot access + config BEFORE embedding/retrieval
         # Determine RAG Config
         rag_top_k = DEFAULT_TOP_K
         rag_reranker = None
         rag_threshold = 0.5
+        chatbot = None
         
-        # 0.5 Fetch Chatbot Config & Enforce Context
+        # 2.1 Fetch Chatbot Config & Enforce Context
         rag_api_key = None
         rag_model = None
         rag_system_prompt = None
@@ -138,32 +119,38 @@ class ChatService:
         if chatbot_id and self.chatbot_repo:
             chatbot = await self.chatbot_repo.get_by_id(chatbot_id)
             if chatbot:
-                # 0.6 RBAC Security Check
-                if user_context:
-                    # Normalize role to lowercase for robust comparison
-                    role = str(user_context.get("role", "")).lower().strip()
-                    # Handle edge case: "UserRole.ADMIN" -> "admin"
-                    if "." in role:
-                        role = role.split(".")[-1]
-                    
-                    uid = user_context.get("id")
-                    
-                    logger.info(f"[CHAT] RBAC Check - User Role: '{role}', Chatbot ID: {chatbot_id}")
-                    
-                    # Admin Bypass - admin has access to ALL chatbots
-                    if role != "admin":
-                        # Normalize allowed_roles to lowercase
-                        raw_allowed = chatbot.get("allowed_roles", [])
-                        allowed_roles = [str(r).lower().strip() for r in raw_allowed]
-                        
-                        logger.info(f"[CHAT] Allowed Roles: {allowed_roles}")
-                        
-                        if role not in allowed_roles:
-                            # Check user specific (if implemented)
-                            logger.warning(f"[CHAT] Access Denied. User Role: '{role}', Allowed: {allowed_roles}, Chatbot: {chatbot.get('name')}")
-                            raise PermissionError(f"Bạn không có quyền truy cập Chatbot '{chatbot.get('name', 'này')}'.")
-                    else:
-                        logger.info(f"[CHAT] Admin access granted - bypassing role check")
+                # 2.2 Access Security Check - chạy trước embed/retrieve để tránh waste token.
+                if not user_context:
+                    raise PermissionError("Không thể xác định người dùng để kiểm tra quyền chatbot.")
+
+                role = str(user_context.get("role", "")).lower().strip()
+                if "." in role:
+                    role = role.split(".")[-1]
+
+                uid = str(user_context.get("id", "")).strip()
+                department = str(user_context.get("department", "") or "").strip().lower()
+
+                logger.info(f"[CHAT] Access Check - User Role: '{role}', Chatbot ID: {chatbot_id}")
+
+                if role != "admin":
+                    allowed_user_ids = [str(u).strip() for u in (chatbot.get("allowed_user_ids", []) or []) if u]
+                    allowed_departments = [str(dep).strip().lower() for dep in (chatbot.get("allowed_departments", []) or []) if dep]
+
+                    # Requirement cập nhật: không có user/department => private, chỉ admin truy cập.
+                    if not allowed_user_ids and not allowed_departments:
+                        logger.warning(
+                            f"[CHAT] Access Denied. Chatbot '{chatbot.get('name')}' is private for admin only"
+                        )
+                        raise PermissionError(f"Bạn không có quyền truy cập Chatbot '{chatbot.get('name', 'này')}'.")
+
+                    has_access = (uid in allowed_user_ids) or (department and department in allowed_departments)
+                    if not has_access:
+                        logger.warning(
+                            f"[CHAT] Access Denied. user={uid}, department='{department}', chatbot={chatbot.get('name')}"
+                        )
+                        raise PermissionError(f"Bạn không có quyền truy cập Chatbot '{chatbot.get('name', 'này')}'.")
+                else:
+                    logger.info("[CHAT] Admin access granted")
 
                 # 🔒 STRICT CONTEXT LOCKING - CRITICAL SECURITY
                 # ALWAYS override client-provided dataset_ids with chatbot's linked datasets
@@ -198,7 +185,7 @@ class ChatService:
                     debug_metrics["model_used"] = rag_model
                     debug_metrics["reranker_used"] = rag_reranker
 
-        # 0.7 Dataset access control (non-admin users)
+        # 2.3 Dataset access control (non-admin users)
         if user_context and dataset_ids:
             role = str(user_context.get("role", "")).lower().strip()
             if "." in role:
@@ -227,6 +214,26 @@ class ChatService:
                     )
 
                 dataset_ids = accessible_dataset_ids
+
+        # 3. Check Semantic Cache (Tối ưu performance)
+        # CRITICAL: Cache key MUST include chatbot_id to prevent cross-bot pollution
+        start_embed = time.time()
+        q_embedding = self._try_embed_question(question)
+        debug_metrics["embedding_time_ms"] = round((time.time() - start_embed) * 1000, 2)
+        
+        cache_key_suffix = f"_bot_{chatbot_id}" if chatbot_id else ""
+        
+        if q_embedding is not None:
+            cached_resp = semantic_cache_service.get(question, q_embedding, suffix=cache_key_suffix)
+            if cached_resp:
+                logger.info(f"[CHAT] Cache HIT (chatbot={chatbot_id}) - Trả về kết quả đã lưu.")
+                # Save cached answer if session exists
+                if session_id and self.session_repo:
+                     await self.session_repo.add_message(session_id, "assistant", cached_resp)
+                
+                debug_metrics["cache_hit"] = True
+                debug_metrics["total_time_ms"] = round((time.time() - start_total) * 1000, 2)
+                return self._format_response(question, cached_resp, [], [], cached=True, debug_metrics=debug_metrics)
 
                 
         grouped_results = []

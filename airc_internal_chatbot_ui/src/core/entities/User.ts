@@ -50,6 +50,7 @@ export interface User {
     id: string;
     email: string;
     full_name: string;
+    department?: string;
     role: UserRole | string;
     is_active: boolean;
     avatar_url?: string;

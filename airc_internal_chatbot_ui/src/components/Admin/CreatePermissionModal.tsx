@@ -40,8 +40,8 @@ const CreatePermissionModal: React.FC<CreatePermissionModalProps> = ({
             await rbacService.createPermission(payload, token);
 
             notification.success({
-                message: 'Thanh cong',
-                description: 'Tao permission khac thanh cong',
+                message: 'Thành công',
+                description: 'Tạo quyền hạn mới thành công',
             });
 
             form.resetFields();
@@ -49,8 +49,8 @@ const CreatePermissionModal: React.FC<CreatePermissionModalProps> = ({
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi',
-                description: err.response?.data?.detail || 'Khong the tao permission',
+                message: 'Lỗi',
+                description: err.response?.data?.detail || 'Không thể tạo quyền hạn',
             });
         } finally {
             setLoading(false);
@@ -59,13 +59,13 @@ const CreatePermissionModal: React.FC<CreatePermissionModalProps> = ({
 
     return (
         <Modal
-            title="Tao Permission Moi"
+            title="Tạo quyền hạn mới"
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Tao moi"
-            cancelText="Huy"
+            okText="Tạo mới"
+            cancelText="Hủy"
         >
             <Form
                 form={form}
@@ -78,16 +78,16 @@ const CreatePermissionModal: React.FC<CreatePermissionModalProps> = ({
             >
                 <Form.Item
                     name="name"
-                    label="Ten Permission"
-                    rules={[{ required: true, message: 'Vui long nhap ten permission' }]}
+                    label="Tên quyền hạn"
+                    rules={[{ required: true, message: 'Vui lòng nhập tên Quyền hạn' }]}
                 >
-                    <Input placeholder="Vi du: View Custom Reports" />
+                    <Input placeholder="Ví dụ: Xem báo cáo tùy chỉnh" />
                 </Form.Item>
 
                 <Form.Item
                     name="code"
-                    label="Permission Code (Unique)"
-                    tooltip="Resource:Action (e.g., reports:view). Neu de trong se tu dong tao."
+                    label="Mã quyền hạn (duy nhất)"
+                    tooltip="Tài nguyên:Hành vi (ví dụ: reports:view). Nếu để trống sẽ tự động tạo."
                 >
                     <Input placeholder="reports:view" />
                 </Form.Item>
@@ -95,40 +95,40 @@ const CreatePermissionModal: React.FC<CreatePermissionModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                     <Form.Item
                         name="resource"
-                        label="Resource"
+                        label="Tài nguyên"
                         rules={[{ required: true }]}
                     >
                         <Select showSearch allowClear>
-                            <Option value="users">Users</Option>
-                            <Option value="roles">Roles</Option>
-                            <Option value="datasets">Datasets</Option>
-                            <Option value="chatbots">Chatbots</Option>
+                            <Option value="users">Người dùng</Option>
+                            <Option value="roles">Vai trò</Option>
+                            <Option value="datasets">Dataset</Option>
+                            <Option value="chatbots">Chatbot</Option>
                             <Option value="chat">Chat</Option>
-                            <Option value="custom">Custom</Option>
+                            <Option value="custom">Tùy chỉnh</Option>
                         </Select>
                     </Form.Item>
 
                     <Form.Item
                         name="action"
-                        label="Action"
+                        label="Hành vi"
                         rules={[{ required: true }]}
                     >
                         <Select>
-                            <Option value="view">View</Option>
-                            <Option value="create">Create</Option>
-                            <Option value="update">Update</Option>
-                            <Option value="delete">Delete</Option>
-                            <Option value="manage">Manage</Option>
-                            <Option value="use">Use</Option>
+                            <Option value="view">Xem</Option>
+                            <Option value="create">Tạo</Option>
+                            <Option value="update">Cập nhật</Option>
+                            <Option value="delete">Xóa</Option>
+                            <Option value="manage">Quản lý</Option>
+                            <Option value="use">Sử dụng</Option>
                         </Select>
                     </Form.Item>
                 </div>
 
                 <Form.Item
                     name="description"
-                    label="Mo ta"
+                    label="Mô tả"
                 >
-                    <Input.TextArea rows={3} placeholder="Mo ta chi tiet ve quyen han nay" />
+                    <Input.TextArea rows={3} placeholder="Mô tả chi tiết về quyền hạn này" />
                 </Form.Item>
             </Form>
         </Modal>

@@ -79,6 +79,7 @@ class AuthService:
             email=user_data.email,
             hashed_password=hashed_password,
             full_name=user_data.full_name,
+            department=user_data.department.strip() if user_data.department else None,
             role=user_data.role.value
         )
         
@@ -206,24 +207,32 @@ class AuthService:
         """
         return self.jwt_service.verify_token(token)
     
-    async def get_all_users(self, role_code: Optional[str] = None) -> list[UserInDB]:
+    async def get_all_users(
+        self,
+        role_code: Optional[str] = None,
+        department: Optional[str] = None
+    ) -> list[UserInDB]:
         """
         Lấy tất cả users (Admin only)
 
         Args:
             role_code: Optional role code để lọc (admin/employee/intern_guest)
+            department: Optional department để lọc
         
         Returns:
             List of UserInDB
         """
         normalized_role = role_code.strip().lower() if role_code else None
+        normalized_department = department.strip() if department else None
+        if normalized_department == "":
+            normalized_department = None
 
         if normalized_role:
             role_exists = await self.user_repo.db.roles.find_one({"code": normalized_role})
             if not role_exists:
                 raise ValueError(f"Role '{normalized_role}' không tồn tại")
 
-        users = await self.user_repo.get_all_users()
+        users = await self.user_repo.get_all_users(department=normalized_department)
         result = []
         for user in users:
             # Populate role from user_roles collection
@@ -267,6 +276,7 @@ class AuthService:
             email=user_data.email,
             hashed_password=hashed_password,
             full_name=user_data.full_name,
+            department=user_data.department.strip() if user_data.department else None,
             role=user_data.role.value
         )
         
@@ -307,6 +317,10 @@ class AuthService:
         if "password" in update_data and update_data["password"]:
             update_data["hashed_password"] = self.hash_password(update_data["password"])
             del update_data["password"]
+
+        if "department" in update_data and update_data["department"] is not None:
+            department = update_data["department"].strip()
+            update_data["department"] = department if department else None
             
         return await self.user_repo.update_user(user_id, update_data)
 

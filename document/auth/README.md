@@ -43,7 +43,7 @@ http://localhost:8001/api/auth
 | Collection         | Mô tả                                            |
 | ------------------ | ------------------------------------------------ |
 | `users`            | Thông tin user (email, password hash, full_name) |
-| `roles`            | Danh sách roles (admin, teacher, student)        |
+| `roles`            | Danh sách roles (admin, employee, intern_guest)  |
 | `user_roles`       | Mapping user → role                              |
 | `permissions`      | Danh sách permissions                            |
 | `role_permissions` | Mapping role → permission                        |
@@ -54,7 +54,7 @@ http://localhost:8001/api/auth
 
 ### `POST /api/auth/register`
 
-Đăng ký tài khoản mới. User mới mặc định có role **student**.
+Đăng ký tài khoản mới. User mới mặc định có role **intern_guest**.
 
 #### Request Body
 
@@ -204,7 +204,7 @@ http://localhost:8001/api/auth
 {
   "id": "507f1f77bcf86cd799439011",
   "email": "user@example.com",
-  "role": "teacher",
+  "role": "employee",
   "is_active": true
 }
 ```
@@ -270,7 +270,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
   "id": "507f1f77bcf86cd799439011",
   "email": "user@example.com",
   "full_name": "Nguyễn Văn A",
-  "role": "teacher",
+  "role": "employee",
   "is_active": true,
   "permissions": [
     "chat:use",
@@ -297,6 +297,57 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 4. _get_user_permissions()           → Lấy danh sách permissions từ role
 5. Return UserResponse
 ```
+
+### `GET /api/auth/users`
+
+Lấy danh sách users (chỉ dành cho admin). Hỗ trợ lọc theo role.
+
+#### Headers
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+#### Query Parameters
+
+| Param  | Kiểu   | Bắt buộc | Mô tả                                      |
+| ------ | ------ | -------- | ------------------------------------------ |
+| `role` | string | ❌       | Lọc theo role code: `admin`, `employee`, `intern_guest` |
+
+#### Ví dụ request
+
+```bash
+# Lấy toàn bộ users
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  http://localhost:8001/api/auth/users
+
+# Lọc users theo role intern_guest
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  "http://localhost:8001/api/auth/users?role=intern_guest"
+```
+
+#### Response thành công (200)
+
+```json
+[
+  {
+    "id": "507f1f77bcf86cd799439011",
+    "email": "intern01@guest.airc.edu.vn",
+    "full_name": "Thuc tap sinh/Khach 01",
+    "role": "intern_guest",
+    "is_active": true,
+    "created_at": "2024-01-15T10:30:00Z"
+  }
+]
+```
+
+#### Response lỗi
+
+| Code  | Mô tả                                |
+| ----- | ------------------------------------ |
+| `400` | Role filter không hợp lệ / không tồn tại |
+| `401` | Token không hợp lệ                   |
+| `403` | Không phải admin                     |
 
 ---
 
@@ -377,7 +428,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 {
   "sub": "507f1f77bcf86cd799439011", // user_id
   "email": "user@example.com",
-  "role": "teacher",
+  "role": "employee",
   "exp": 1705331400, // Expiration timestamp
   "iat": 1705327800 // Issued at timestamp
 }
@@ -409,6 +460,7 @@ print(payload)
 | POST   | `/api/auth/login`    | Đăng nhập                   | ❌            |
 | POST   | `/api/auth/verify`   | Xác thực token (internal)   | ❌            |
 | GET    | `/api/auth/me`       | Lấy thông tin user hiện tại | ✅            |
+| GET    | `/api/auth/users`    | Admin lấy danh sách users, hỗ trợ `?role=` | ✅            |
 
 ---
 

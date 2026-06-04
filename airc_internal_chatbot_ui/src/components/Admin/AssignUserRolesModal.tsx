@@ -39,8 +39,8 @@ const AssignUserRolesModal: React.FC<AssignUserRolesModalProps> = ({
 
         } catch (_error: unknown) {
             notification.error({
-                message: 'Loi tai du lieu',
-                description: 'Khong the tai thong tin roles.',
+                message: 'Lỗi tải dữ liệu',
+                description: 'Không thể tải thông tin vai trò',
             });
         } finally {
             setLoading(false);
@@ -60,17 +60,17 @@ const AssignUserRolesModal: React.FC<AssignUserRolesModalProps> = ({
             if (checked) {
                 await rbacService.assignRoleToUser(user.id, roleId, token);
                 setUserRoles(prev => [...prev, roleId]);
-                notification.success({ message: 'Da them role' });
+                notification.success({ message: 'Đã thêm vai trò' });
             } else {
                 await rbacService.removeRoleFromUser(user.id, roleId, token);
                 setUserRoles(prev => prev.filter(id => id !== roleId));
-                notification.success({ message: 'Da xoa role' });
+                notification.success({ message: 'Đã xóa vai trò' });
             }
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi cap nhat',
-                description: err.response?.data?.detail || 'Khong the cap nhat role.',
+                message: 'Lỗi cập nhật',
+                description: err.response?.data?.detail || 'Không thể cập nhật vai trò.',
             });
             // Revert state if failed (optional, but good UX)
         } finally {
@@ -80,7 +80,7 @@ const AssignUserRolesModal: React.FC<AssignUserRolesModalProps> = ({
 
     return (
         <Modal
-            title={`Quan ly vai tro cho: ${user?.full_name}`}
+            title={`Quản lý vai trò cho: ${user?.full_name}`}
             open={visible}
             onCancel={onCancel}
             footer={null} // Direct action on checkbox
@@ -88,7 +88,7 @@ const AssignUserRolesModal: React.FC<AssignUserRolesModalProps> = ({
         >
             <Spin spinning={loading}>
                 <div className="mb-4 text-gray-500">
-                    Chon cac vai tro de gan cho nguoi dung nay. Thay doi se duoc luu ngay lap tuc.
+                    Chọn các vai trò để gán cho người dùng này. Thay đổi sẽ được lưu ngay lập tức.
                 </div>
                 <div className="max-h-96 overflow-y-auto">
                     {allRoles.map(role => (

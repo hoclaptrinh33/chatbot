@@ -47,7 +47,7 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
             items.push({
                 key: '/dashboard',
                 icon: <DashboardOutlined />,
-                label: 'Dashboard',
+                label: 'Tổng quan',
             });
         }
 
@@ -57,27 +57,27 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                 {
                     key: '/admin/permissions',
                     icon: <SafetyCertificateOutlined />,
-                    label: 'Permissions',
+                    label: 'Quyền hạn',
                 },
                 {
                     key: '/admin/roles',
                     icon: <SafetyCertificateOutlined />,
-                    label: 'Roles',
+                    label: 'Vai trò',
                 },
                 {
                     key: '/admin/users',
                     icon: <TeamOutlined />,
-                    label: 'Users',
+                    label: 'Người dùng',
                 },
                 {
                     key: '/admin/chatbots',
                     icon: <RobotOutlined />,
-                    label: 'Chatbots',
+                    label: 'Chatbot',
                 },
                 {
                     key: '/dashboard/datasets',
                     icon: <DatabaseOutlined />,
-                    label: 'Datasets',
+                    label: 'Dataset',
                 }
             );
         }
@@ -88,7 +88,7 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                 {
                     key: '/dashboard/datasets',
                     icon: <DatabaseOutlined />,
-                    label: 'Datasets',
+                    label: 'Dataset',
                 }
             );
         }
@@ -97,7 +97,7 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
         items.push({
             key: '/dashboard/chat',
             icon: <MessageOutlined />,
-            label: 'AI Chat',
+            label: 'Trò chuyện AI',
         });
 
         return items;
@@ -115,7 +115,11 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                 boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
                 zIndex: 1001,
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                height: '100vh',
+                overflow: 'hidden',
+                position: 'sticky',
+                top: 0,
             }}
         >
             <AIRCLogo collapsed={collapsed} />
