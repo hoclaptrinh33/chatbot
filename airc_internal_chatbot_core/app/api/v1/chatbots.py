@@ -13,12 +13,52 @@ from app.models.schemas import SuccessResponse
 from app.services.chatbot_service import ChatbotService
 from app.api.dependencies import get_chatbot_service, get_current_user
 from app.models.auth import User
-from typing import List
+from typing import List, Optional
 import logging
+import httpx
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/meta/llm-models")
+async def get_available_llm_models(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Lấy danh sách các LLM model khả dụng từ server local hoặc cloud API (OpenAI-compatible)
+    và model mặc định được cấu hình trong hệ thống (.env)
+    """
+    default_model = settings.llm_model_name
+    models = []
+    try:
+        base_url = settings.llm_api_base_url.rstrip("/")
+        endpoint = f"{base_url}/models"
+        
+        headers = {}
+        if settings.llm_api_key:
+            headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+            
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(endpoint, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                models_data = data.get("data", [])
+                models = [m.get("id") for m in models_data if m.get("id")]
+    except Exception as e:
+        logger.warning(f"[LLM Models] Error fetching models from {settings.llm_api_base_url}: {e}")
+        
+    # Luôn đảm bảo default_model có mặt trong danh sách gợi ý
+    if default_model and default_model not in models:
+        models.insert(0, default_model)
+        
+    return {
+        "models": models,
+        "default_model": default_model
+    }
+
 
 
 @router.post("", response_model=ChatbotResponse, status_code=201)
@@ -55,21 +95,45 @@ async def list_chatbots(
     chatbot_service: ChatbotService = Depends(get_chatbot_service)
 ):
     """
-    Lấy danh sách chatbots available theo user/phòng ban.
+    Lấy danh sách chatbots available (filtered by role - RBAC)
     
     - Admin: see all chatbots
-    - Non-admin: see chatbots theo allow-list user_id hoặc department
+    - Teacher/Student: see chatbots với allowed_roles matching
     """
     try:
         chatbots = await chatbot_service.get_available_chatbots(
             user_id=current_user.user_id,
-            user_role=current_user.role,
-            user_department=current_user.department
+            user_role=current_user.role
         )
         return [ChatbotResponse(**cb) for cb in chatbots]
     
     except Exception as e:
         logger.exception("Error listing chatbots")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/meta/roles-with-chatbot", response_model=List[str])
+async def get_roles_with_chatbot(
+    exclude_chatbot_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    chatbot_service: ChatbotService = Depends(get_chatbot_service)
+):
+    """
+    Lấy danh sách roles đã được assign chatbot - ADMIN ONLY
+    
+    Dùng để disable roles trong UI create/edit chatbot form
+    (Mỗi role trừ admin chỉ được dùng 1 chatbot)
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    try:
+        roles = await chatbot_service.get_roles_with_chatbot_assigned(
+            exclude_chatbot_id=exclude_chatbot_id
+        )
+        return roles
+    except Exception as e:
+        logger.exception("Error getting roles with chatbot")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -79,13 +143,14 @@ async def get_chatbot(
     current_user: User = Depends(get_current_user),
     chatbot_service: ChatbotService = Depends(get_chatbot_service)
 ):
-    """Lấy chatbot detail (permission check theo user/phòng ban)."""
+    """
+    Lấy chatbot detail (permission check theo RBAC)
+    """
     try:
         chatbot = await chatbot_service.get_chatbot(
             chatbot_id=chatbot_id,
             user_role=current_user.role,
-            user_id=current_user.user_id,
-            user_department=current_user.department
+            user_id=current_user.user_id
         )
         
         if not chatbot:

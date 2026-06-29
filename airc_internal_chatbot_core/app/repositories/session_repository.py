@@ -25,11 +25,13 @@ class SessionRepository(BaseRepository):
     # ==================== Session Operations ====================
     # (Inherits basic CRUD from BaseRepository: find_one, insert_one, delete_one, etc.)
         
-    async def create_session(self, user_id: str, name: str) -> dict:
+    async def create_session(self, user_id: str, name: str, parent_id: Optional[str] = None, branch_message_index: Optional[int] = None) -> dict:
         """Tạo phiên chat mới"""
         doc = {
             "user_id": user_id,
             "name": name,
+            "parent_id": parent_id,
+            "branch_message_index": branch_message_index,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }

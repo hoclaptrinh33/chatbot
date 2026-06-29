@@ -7,7 +7,7 @@ from app.api.dependencies import (
     get_auth_service, 
     get_current_user, 
     get_admin_user,
-    get_employee_or_admin,
+    get_admin_user,
     require_permission,
     get_rbac_service
 )
@@ -24,11 +24,8 @@ from app.models.user import (
 )
 from app.core.rate_limiter import rate_limiter
 from app.core.validators import InputValidator
-from typing import Annotated, List, Optional, TYPE_CHECKING
+from typing import Annotated, List, Optional
 import logging
-
-if TYPE_CHECKING:
-    from app.services.rbac_service import RBACService
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ async def register(
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
-    Đăng ký user mới (default role: INTERN_GUEST)
+    Đăng ký user mới (default role: STUDENT)
     
     Args:
         request: FastAPI request object
@@ -239,8 +236,7 @@ async def verify_token(
             "id": str(user.id),
             "email": user.email,
             "full_name": user.full_name,
-            "role": user.role,
-            "department": user.department,
+            "role": user.role
         }
         
     except HTTPException:
@@ -282,7 +278,6 @@ async def get_me(
         id=current_user.id,
         email=current_user.email,
         full_name=current_user.full_name,
-        department=current_user.department,
         role=current_user.role,
         is_active=current_user.is_active,
         created_at=current_user.created_at
@@ -307,56 +302,26 @@ async def get_my_permissions(
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    current_user: Annotated[UserInDB, Depends(get_employee_or_admin)],
-    auth_service: Annotated[AuthService, Depends(get_auth_service)],
-    role: Optional[str] = None,
-    department: Optional[str] = None
+    current_user: Annotated[UserInDB, Depends(get_admin_user)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ):
     """
-    Lấy danh sách users theo quyền hiện tại
-
-    Quy tắc truy cập:
-    - Admin: xem tất cả users hoặc filter theo mọi role.
-    - Employee: chỉ được phép filter role=intern_guest để phục vụ chia sẻ dataset.
+    Lấy danh sách tất cả users (Admin only)
     
     Returns:
         List of users
     """
-    try:
-        if current_user.role == "employee":
-            if not role:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Employee must provide role filter"
-                )
-            if role.strip().lower() != "intern_guest":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Employee can only query intern_guest users"
-                )
-            if department:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Employee cannot filter users by department"
-                )
-
-        users = await auth_service.get_all_users(role_code=role, department=department)
-        return [
-            UserResponse(
-                id=u.id,
-                email=u.email,
-                full_name=u.full_name,
-                department=u.department,
-                role=u.role,
-                is_active=u.is_active,
-                created_at=u.created_at
-            ) for u in users
-        ]
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+    users = await auth_service.get_all_users()
+    return [
+        UserResponse(
+            id=u.id,
+            email=u.email,
+            full_name=u.full_name,
+            role=u.role,
+            is_active=u.is_active,
+            created_at=u.created_at
+        ) for u in users
+    ]
     
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_admin(
@@ -373,7 +338,6 @@ async def create_user_admin(
             id=str(user["id"]),
             email=user["email"],
             full_name=user["full_name"],
-            department=user.get("department"),
             role=user["role"],
             is_active=user["is_active"],
             created_at=user["created_at"]
@@ -407,7 +371,6 @@ async def update_user_admin(
             id=updated_user.id,
             email=updated_user.email,
             full_name=updated_user.full_name,
-            department=updated_user.department,
             role=updated_user.role,
             is_active=updated_user.is_active,
             created_at=updated_user.created_at

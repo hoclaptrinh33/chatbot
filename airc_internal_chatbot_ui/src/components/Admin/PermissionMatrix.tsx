@@ -53,7 +53,7 @@ const PermissionMatrix: React.FC<PermissionMatrixProps> = ({
 
     const columns: ColumnsType<MatrixRow> = [
         {
-            title: 'Tài nguyên',
+            title: 'Resource',
             dataIndex: 'resource',
             key: 'resource',
             width: 120,
@@ -82,7 +82,7 @@ const PermissionMatrix: React.FC<PermissionMatrixProps> = ({
             }
         },
         {
-            title: 'Quyền hạn',
+            title: 'Permission',
             dataIndex: 'permission',
             key: 'permission',
             width: 200,

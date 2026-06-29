@@ -29,7 +29,7 @@ const DatasetDetailPage = () => {
             setFiles(fs);
         } catch (error) {
             console.error('Fetch detail failed', error);
-            notification.error({ message: 'Không thể tải chi tiết dataset' });
+            notification.error({ message: 'Failed to load dataset details' });
         } finally {
             setLoading(false);
         }
@@ -38,11 +38,11 @@ const DatasetDetailPage = () => {
     useEffect(() => {
         fetchData();
 
-        // Thăm dò nếu có file nào đang xử lý
+        // Poll if any file is processing
         const pollInterval = setInterval(async () => {
             try {
                 const fs = await datasetService.getDatasetFiles(id);
-            // Chỉ cập nhật nếu còn file đang xử lý hoặc trạng thái thay đổi
+                // Only update if there are files still processing or status changed
                 const hasProcessing = fs.some(f => f.status !== 'done' && f.status !== 'error');
                 if (hasProcessing || fs.length !== files.length) {
                     setFiles(fs);
@@ -68,8 +68,8 @@ const DatasetDetailPage = () => {
         return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     };
 
-    if (loading) return <div className="p-10">Đang tải...</div>;
-    if (!dataset) return <div className="p-10">Không tìm thấy dataset</div>;
+    if (loading) return <div className="p-10">Loading...</div>;
+    if (!dataset) return <div className="p-10">Dataset not found</div>;
 
     const totalSize = formatBytes(files.reduce((acc, f) => acc + (f.file_size || 0), 0));
     const totalChunks = files.reduce((acc, f) => acc + (f.chunk_count || 0), 0);
@@ -79,7 +79,7 @@ const DatasetDetailPage = () => {
             {/* Minimal Header for Back button */}
             <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center">
                 <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.push('/dashboard/datasets')}>
-                    Quay lại danh sách dataset
+                    Back to Datasets
                 </Button>
             </div>
 

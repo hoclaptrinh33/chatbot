@@ -44,14 +44,13 @@ async def verify_token_with_auth_service(token: str) -> User:
                      user_id = user_data.get("user_id", "unknown")
 
                 # Default role fallback if missing (backward compatibility)
-                role = user_data.get("role", UserRole.INTERN_GUEST)
+                role = user_data.get("role", UserRole.STUDENT)
                 
                 user = User(
                     id=user_id,
                     user_id=user_id,
                     email=user_data.get("email", ""),
                     full_name=user_data.get("full_name", ""),
-                    department=user_data.get("department"),
                     role=role,
                     is_active=user_data.get("is_active", True)
                 )
@@ -126,7 +125,7 @@ def require_permission(permission: Permission) -> Callable:
              return current_user
              
         if permission in [Permission.DATASETS_CREATE, Permission.DATASETS_UPDATE_OWN]:
-            if current_user.role == UserRole.EMPLOYEE:
+            if current_user.role == UserRole.TEACHER:
                 return current_user
                 
         # If strict check fails

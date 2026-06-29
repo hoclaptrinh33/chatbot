@@ -22,7 +22,7 @@ interface ChatState {
 
     // Actions
     loadSessions: () => Promise<void>;
-    createSession: (name?: string) => Promise<string>;
+    createSession: (name?: string, parent_id?: string, branch_message_index?: number) => Promise<string>;
     selectSession: (sessionId: string) => Promise<void>;
     renameSession: (sessionId: string, name: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
@@ -32,6 +32,8 @@ interface ChatState {
     selectChatbot: (id: string | null, datasetIds?: string[]) => void;
     clearHistory: () => void;
     resetStore: () => void; // NEW: Reset entire store (for logout/user change)
+    createBranch: (newContent: string, messageIndex: number) => Promise<void>;
+    regenerateMessage: (messageIndex: number) => Promise<void>;
 }
 
 const useChatStore = create<ChatState>()(
@@ -55,10 +57,10 @@ const useChatStore = create<ChatState>()(
                 }
             },
 
-            createSession: async (name: string = 'New Chat') => {
+            createSession: async (name: string = 'Cuộc trò chuyện mới', parent_id?: string, branch_message_index?: number) => {
                 set({ loading: true });
                 try {
-                    const session = await chatService.createSession(name);
+                    const session = await chatService.createSession(name, parent_id, branch_message_index);
                     const sessions = await chatService.getSessions();
                     set({
                         sessions,
@@ -210,6 +212,59 @@ const useChatStore = create<ChatState>()(
                         ]
                     }));
                 }
+            },
+
+            createBranch: async (newContent: string, messageIndex: number) => {
+                const { sessions, currentSessionId, messages } = get();
+                if (!currentSessionId) return;
+
+                const currentSession = sessions.find(s => s.id === currentSessionId);
+                const sessionName = currentSession ? currentSession.name : 'Cuộc trò chuyện';
+                const branchName = sessionName; // Giữ nguyên tên session gốc cho nhánh con
+
+                set({ loading: true, error: null });
+                try {
+                    // 1. Tạo session mới với parent_id và branch_message_index
+                    const newSession = await chatService.createSession(branchName, currentSessionId, messageIndex);
+                    const newSessionId = newSession.id;
+
+                    // 2. Clone các tin nhắn cũ từ đầu đến trước tin nhắn bị sửa
+                    const oldMessages = messages.slice(0, messageIndex);
+                    for (const msg of oldMessages) {
+                        await chatService.addMessage(newSessionId, msg.role as 'user' | 'assistant', msg.content);
+                    }
+
+                    // 3. Cập nhật danh sách session và chuyển sang session mới
+                    const updatedSessions = await chatService.getSessions();
+                    set({
+                        sessions: updatedSessions,
+                        currentSessionId: newSessionId,
+                        messages: oldMessages,
+                        loading: false
+                    });
+
+                    // 4. Gửi câu hỏi đã chỉnh sửa
+                    await get().sendMessage(newContent);
+                } catch (error) {
+                    console.error('Failed to create branch:', error);
+                    set({ loading: false, error: 'Không thể tạo nhánh mới' });
+                    throw error;
+                }
+            },
+
+            regenerateMessage: async (messageIndex: number) => {
+                const { messages } = get();
+                if (messageIndex <= 0) return;
+
+                const userMessage = messages[messageIndex - 1];
+                if (userMessage.role !== 'user') return;
+
+                // Xóa tin nhắn bị lỗi và các tin nhắn sau đó khỏi giao diện
+                const newMessages = messages.slice(0, messageIndex);
+                set({ messages: newMessages });
+
+                // Gửi lại câu hỏi
+                await get().sendMessage(userMessage.content);
             },
 
             selectDatasets: (ids: string[]) => set({ datasetIds: ids }),

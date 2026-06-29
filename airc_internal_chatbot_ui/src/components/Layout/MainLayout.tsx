@@ -41,31 +41,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         return null; // Or a loader if preferred
     }
 
-    const isInternGuest = user?.role === 'intern_guest';
+    const isStudent = user?.role === 'student';
 
-    // RBAC: Serve separate layout for intern/guest users
-    if (isInternGuest) {
+    // RBAC: Serve separate layout for Student
+    if (isStudent) {
         return <StudentLayout>{children}</StudentLayout>;
     }
 
     return (
-            <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        <Layout style={{ minHeight: '100vh' }}>
             <MainSidebar
                 collapsed={collapsed}
                 onCollapse={setCollapsed}
             />
 
-            <Layout style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Layout>
                 <MainHeader collapsed={collapsed} />
 
-                <Content style={{ margin: '24px 24px', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <Content style={{ margin: '8px 8px', minHeight: 280 }}>
                     <div
                         style={{
-                            padding: 0,
-                            height: '100%',
+                            padding: 8,
+                            minHeight: '100%',
                             background: '#f5f5f5', // Transparent content bg to show cards better
                             borderRadius: borderRadiusLG,
-                            overflow: 'auto',
                         }}
                     >
                         {children}

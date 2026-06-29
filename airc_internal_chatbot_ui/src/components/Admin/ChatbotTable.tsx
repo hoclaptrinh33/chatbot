@@ -12,25 +12,9 @@ interface ChatbotTableProps {
 }
 
 const ChatbotTable: React.FC<ChatbotTableProps> = ({ chatbots, loading, onEdit, onDelete }) => {
-    const renderAccessSummary = (record: Chatbot) => {
-        const userCount = (record.allowed_user_ids || []).length;
-        const departmentCount = (record.allowed_departments || []).length;
-
-        if (userCount === 0 && departmentCount === 0) {
-            return <Tag color="orange">Riêng tư (chỉ quản trị viên)</Tag>;
-        }
-
-        return (
-            <Space wrap>
-                {userCount > 0 && <Tag color="blue">{userCount} người dùng</Tag>}
-                {departmentCount > 0 && <Tag color="purple">{departmentCount} phòng ban</Tag>}
-            </Space>
-        );
-    };
-
     const columns: ColumnsType<Chatbot> = [
         {
-            title: 'Tên chatbot',
+            title: 'Name',
             dataIndex: 'name',
             key: 'name',
             render: (text, record) => (
@@ -41,64 +25,73 @@ const ChatbotTable: React.FC<ChatbotTableProps> = ({ chatbots, loading, onEdit, 
             ),
         },
         {
-            title: 'Mô tả',
+            title: 'Description',
             dataIndex: 'description',
             key: 'description',
             ellipsis: true,
         },
         {
-            title: 'Hiển thị',
+            title: 'Visibility',
             dataIndex: 'visibility',
             key: 'visibility',
             render: (visibility: string) => {
                 let color = 'default';
                 if (visibility === 'public') color = 'green';
                 if (visibility === 'private') color = 'orange';
-                return <Tag color={color}>{visibility === 'public' ? 'Công khai' : 'Riêng tư'}</Tag>;
+                return <Tag color={color}>{visibility.toUpperCase()}</Tag>;
             },
         },
         {
-            title: 'Phân quyền truy cập',
-            key: 'access_scope',
-            render: (_, record) => renderAccessSummary(record),
-        },
-        {
-            title: 'Nguồn dữ liệu',
-            dataIndex: 'dataset_ids',
-            key: 'dataset_ids',
-            render: (ids: string[] | null | undefined) => (
-                <Tag>{(ids || []).length} dataset</Tag>
+            title: 'Allowed Roles',
+            dataIndex: 'allowed_roles',
+            key: 'allowed_roles',
+            render: (roles: string[]) => (
+                <>
+                    {roles.map((role) => (
+                        <Tag key={role} color="geekblue">
+                            {role.toUpperCase()}
+                        </Tag>
+                    ))}
+                </>
             ),
         },
         {
-            title: 'Trạng thái',
+            title: 'Datasets',
+            dataIndex: 'dataset_ids',
+            key: 'dataset_ids',
+            render: (ids: string[] | null | undefined) => (
+                <Tag>{(ids || []).length} Datasets</Tag>
+            ),
+        },
+        {
+            title: 'Status',
             dataIndex: 'is_active',
             key: 'is_active',
             render: (isActive: boolean) => (
                 <Tag color={isActive ? 'success' : 'error'}>
-                    {isActive ? 'Đang hoạt động' : 'Tạm dừng'}
+                    {isActive ? 'ACTIVE' : 'INACTIVE'}
                 </Tag>
             )
         },
         {
-            title: 'Thao tác',
+            title: 'Actions',
             key: 'actions',
             render: (_, record) => (
                 <Space size="middle">
-                    <Tooltip title="Chỉnh sửa chatbot">
+                    <Tooltip title="Edit Chatbot">
                         <Button
                             type="text"
                             icon={<EditOutlined className="text-blue-500" />}
                             onClick={() => onEdit(record)}
                         />
                     </Tooltip>
-                    <Tooltip title="Xóa chatbot">
+                    <Tooltip title="Delete Chatbot">
                         <Popconfirm
-                            title="Xóa chatbot"
-                            description="Bạn có chắc muốn xóa chatbot này không?"
+                            title="Delete Chatbot"
+                            description="Are you sure you want to delete this chatbot?"
                             onConfirm={() => onDelete(record)}
-                            okText="Xóa"
-                            cancelText="Hủy"
+                            okText="Yes"
+                            cancelText="No"
                             okButtonProps={{ danger: true }}
                         >
                             <Button

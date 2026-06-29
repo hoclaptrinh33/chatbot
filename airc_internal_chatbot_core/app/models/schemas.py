@@ -32,7 +32,6 @@ class DatasetResponse(BaseModel):
     description: Optional[str] = None
     # config: DatasetConfig  <-- Removed
     created_at: datetime
-    shared_with: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,14 +84,6 @@ class DatasetFileResponse(BaseModel):
 class ToggleDatasetFileRequest(BaseModel):
     """Request: Bật/tắt dataset file"""
     enabled: bool
-
-
-class ShareDatasetRequest(BaseModel):
-    """Request: Chia sẻ dataset cho danh sách user IDs"""
-    user_ids: Optional[List[str]] = Field(default=None, description="Danh sách user IDs được chia sẻ")
-    # Backward compatibility với payload cũ trên UI.
-    student_ids: Optional[List[str]] = Field(default=None, description="Legacy field")
-    all_students: bool = Field(default=False, description="Legacy mode, chưa hỗ trợ fully")
 
 
 # ==================== Chat Schemas ====================
@@ -174,6 +165,8 @@ class ErrorResponse(BaseModel):
 class ChatSessionCreate(BaseModel):
     """Request: Tạo phiên chat mới"""
     name: str = Field(..., min_length=1, description="Tên phiên chat")
+    parent_id: Optional[str] = Field(default=None, description="ID của session cha nếu đây là nhánh rẽ")
+    branch_message_index: Optional[int] = Field(default=None, description="Index của tin nhắn bắt đầu rẽ nhánh")
 
 
 class ChatSessionUpdate(BaseModel):
@@ -188,6 +181,8 @@ class ChatSessionResponse(BaseModel):
     name: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    parent_id: Optional[str] = None
+    branch_message_index: Optional[int] = None
 
 
 class ChatMessageCreate(BaseModel):

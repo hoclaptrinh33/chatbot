@@ -43,16 +43,16 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({
             await rbacService.updateRole(id, payload, token);
 
             notification.success({
-                message: 'Thành công',
-                description: 'Cập nhật role thành công',
+                message: 'Thanh cong',
+                description: 'Cap nhat role thanh cong',
             });
 
             onSuccess();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Lỗi',
-                description: err.response?.data?.detail || 'Không thể cập nhật role',
+                message: 'Loi',
+                description: err.response?.data?.detail || 'Khong the update role',
             });
         } finally {
             setLoading(false);
@@ -61,13 +61,13 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({
 
     return (
         <Modal
-            title={`Sửa vai trò: ${role?.code}`}
+            title={`Sua Role: ${role?.code}`}
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Lưu thay đổi"
-            cancelText="Hủy"
+            okText="Luu thay doi"
+            cancelText="Huy"
         >
             <Form
                 form={form}
@@ -76,15 +76,15 @@ const EditRoleModal: React.FC<EditRoleModalProps> = ({
             >
                 <Form.Item
                     name="name"
-                    label="Tên vai trò"
-                    rules={[{ required: true, message: 'Vui lòng nhập tên role' }]}
+                    label="Ten Role"
+                    rules={[{ required: true, message: 'Vui long nhap ten role' }]}
                 >
                     <Input />
                 </Form.Item>
 
                 <Form.Item
                     name="description"
-                    label="Mô tả"
+                    label="Mo ta"
                 >
                     <Input.TextArea rows={3} />
                 </Form.Item>

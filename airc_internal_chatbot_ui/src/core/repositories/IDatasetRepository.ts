@@ -6,7 +6,7 @@ export interface IDatasetRepository {
     createDataset(name: string, chatbot_ids?: string[]): Promise<Dataset>;
     updateDataset(id: string, payload: { name: string; visibility?: string }): Promise<Dataset>;
     deleteDataset(id: string): Promise<void>;
-    shareDataset(id: string, payload: { user_ids?: string[]; all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>>;
+    shareDataset(id: string, payload: { all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>>;
 
     // Files
     addFilesToDataset(datasetId: string, fileIds: string[]): Promise<Record<string, unknown>>;

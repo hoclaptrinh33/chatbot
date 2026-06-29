@@ -123,5 +123,3 @@ test_*.json
 *.bin
 *.pt
 *.onnx
-.github
-document/

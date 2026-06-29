@@ -27,25 +27,25 @@ const DatasetTable: React.FC<DatasetTableProps> = ({
 }) => {
     const columns: ColumnsType<Dataset> = [
         {
-            title: 'Tên dataset',
+            title: 'Ten Dataset',
             dataIndex: 'name',
             key: 'name',
             render: (text) => <span className="font-medium text-blue-600">{text}</span>,
             sorter: (a, b) => a.name.localeCompare(b.name),
         },
         {
-            title: 'Ngày tạo',
+            title: 'Ngay tao',
             dataIndex: 'created_at',
             key: 'created_at',
             render: (text) => text ? dayjs(text).format('DD/MM/YYYY') : '-',
         },
         {
-            title: 'Hành động',
+            title: 'Hanh dong',
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
                     {onDownload && (
-                        <Tooltip title="Tải xuống (chưa hỗ trợ)">
+                        <Tooltip title="Tai xuong (Chua ho tro)">
                             <Button
                                 type="text"
                                 icon={<DownloadOutlined />}
@@ -55,7 +55,7 @@ const DatasetTable: React.FC<DatasetTableProps> = ({
                         </Tooltip>
                     )}
                     {onShare && (
-                        <Tooltip title="Chia sẻ">
+                        <Tooltip title="Chia se">
                             <Button
                                 type="text"
                                 icon={<ShareAltOutlined />}
@@ -65,13 +65,13 @@ const DatasetTable: React.FC<DatasetTableProps> = ({
                         </Tooltip>
                     )}
                     {onDelete && (
-                        <Tooltip title="Xóa">
+                        <Tooltip title="Xoa">
                             <Popconfirm
-                                title="Xóa dataset này?"
-                                description="Bạn có chắc muốn xóa dataset này không?"
+                                title="Xoa dataset nay?"
+                                description="Ban co chac muon xoa dataset nay khong?"
                                 onConfirm={() => onDelete(record.id)}
-                                okText="Xóa"
-                                cancelText="Hủy"
+                                okText="Xoa"
+                                cancelText="Huy"
                                 okButtonProps={{ danger: true }}
                             >
                                 <Button

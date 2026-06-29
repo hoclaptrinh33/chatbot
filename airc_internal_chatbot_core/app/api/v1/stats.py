@@ -54,16 +54,12 @@ async def get_dashboard_stats():
         # Count collections
         chatbot_count = await db.chatbots.count_documents({})
         dataset_count = await db.datasets.count_documents({})
-        conversation_count = await db.sessions.count_documents({})
+        conversation_count = await db.conversations.count_documents({})
         
-        # Count users from auth service (if available) - for now count from sessions
-        # Get unique user_ids from sessions
-        try:
-            auth_db = db.client["airc_auth_db"]
-            user_count = await auth_db.users.count_documents({})
-        except Exception:
-            user_ids = await db.sessions.distinct("user_id")
-            user_count = len(user_ids) if user_ids else 0
+        # Count users from auth service (if available) - for now count from conversations
+        # Get unique user_ids from conversations
+        user_ids = await db.conversations.distinct("user_id")
+        user_count = len(user_ids) if user_ids else 0
         
         # Count chunks in qdrant (approximate from datasets)
         total_chunks = 0
@@ -78,7 +74,7 @@ async def get_dashboard_stats():
         
         # Count conversations today
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        conversations_today = await db.sessions.count_documents({
+        conversations_today = await db.conversations.count_documents({
             "created_at": {"$gte": today_start}
         })
         
@@ -147,7 +143,7 @@ async def get_recent_activity(limit: int = 5):
         
         # Get today's conversation count
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        conv_today = await db.sessions.count_documents({
+        conv_today = await db.conversations.count_documents({
             "created_at": {"$gte": today_start}
         })
         if conv_today > 0:

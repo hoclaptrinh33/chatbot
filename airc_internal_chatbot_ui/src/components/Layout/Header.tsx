@@ -81,9 +81,9 @@ const MainHeader: React.FC<HeaderProps> = ({ collapsed }) => {
                             icon={<UserOutlined />}
                         />
                         <div className="hidden md:block leading-tight">
-                            <div className="font-semibold text-sm">{user?.full_name || 'Người dùng'}</div>
+                            <div className="font-semibold text-sm">{user?.full_name || 'User'}</div>
                             <div className="text-xs text-gray-500 capitalize">
-                                {user?.role?.toLowerCase() || 'Chưa rõ'}
+                                {user?.role?.toLowerCase() || 'N/A'}
                             </div>
                         </div>
                     </Space>

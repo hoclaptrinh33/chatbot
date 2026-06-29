@@ -4,7 +4,7 @@ Unified Database Seed Script - Khởi tạo toàn bộ database cho Auth Service
 Script này tạo:
 1. Collections và indexes
 2. RBAC roles và permissions
-3. Sample users (admin, employee, intern_guest)
+3. Sample users (admin, teacher, student)
 
 Chạy script:
     python seed_database.py
@@ -15,8 +15,8 @@ Hoặc chạy từ host vào Docker MongoDB:
 
 Credentials sau khi seed:
     - admin@airc.edu.vn / Pass123
-    - nhanvien01@airc.edu.vn / Pass123
-    - intern01@guest.airc.edu.vn / Pass123
+    - nguyen.van.a@airc.edu.vn / Pass123  
+    - sv01@student.airc.edu.vn / Pass123
 """
 import os
 import logging
@@ -65,27 +65,27 @@ class DatabaseSeeder:
             
             # Test connection
             self.client.admin.command('ping')
-            logger.info("Connected to MongoDB successfully\n")
+            logger.info("✅ Connected to MongoDB successfully\n")
         except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
+            logger.error(f"❌ Failed to connect to MongoDB: {e}")
             raise
 
     def close(self):
         """Đóng kết nối"""
         if self.client:
             self.client.close()
-            logger.info("Connection closed")
+            logger.info("🔌 Connection closed")
     
     def drop_existing_data(self):
         """Xóa dữ liệu cũ (nếu có)"""
-        logger.info("Dropping existing collections...")
+        logger.info("🗑️  Dropping existing collections...")
         
         collections = self.db.list_collection_names()
         for collection in collections:
             self.db[collection].drop()
             logger.info(f"   - Dropped: {collection}")
         
-        logger.info("Existing data cleared\n")
+        logger.info("✅ Existing data cleared\n")
     
     def create_collections_and_indexes(self):
         """Tạo collections và indexes"""
@@ -111,7 +111,7 @@ class DatabaseSeeder:
         self.db.role_permissions.create_index([("role_id", 1), ("permission_id", 1)], unique=True)
         logger.info("   - role_permissions: role_id + permission_id index (unique)")
         
-        logger.info("Collections and indexes created\n")
+        logger.info("✅ Collections and indexes created\n")
     
     def seed_roles(self) -> Dict[str, any]:
         """Tạo system roles"""
@@ -127,17 +127,17 @@ class DatabaseSeeder:
                 "created_at": datetime.utcnow()
             },
             {
-                "name": "Employee",
-                "code": "employee",
-                "description": "Nhân viên - Tạo dataset, upload tài liệu, chat với bot",
+                "name": "Teacher",
+                "code": "teacher",
+                "description": "Giảng viên - Tạo dataset, upload tài liệu, chat với bot",
                 "is_system": True,
                 "is_active": True,
                 "created_at": datetime.utcnow()
             },
             {
-                "name": "Intern & Guest",
-                "code": "intern_guest",
-                "description": "Thực tập sinh/khách - Chủ yếu sử dụng chatbot theo quyền được cấp",
+                "name": "Student",
+                "code": "student",
+                "description": "Sinh viên - Chỉ chat với bot",
                 "is_system": True,
                 "is_active": True,
                 "created_at": datetime.utcnow()
@@ -145,13 +145,13 @@ class DatabaseSeeder:
         ]
         
         result = self.db.roles.insert_many(roles)
-        logger.info(f"Created {len(result.inserted_ids)} roles\n")
+        logger.info(f"✅ Created {len(result.inserted_ids)} roles\n")
         
         return {role["code"]: role_id for role, role_id in zip(roles, result.inserted_ids)}
     
     def seed_permissions(self) -> Dict[str, any]:
         """Tạo system permissions"""
-        logger.info("Creating system permissions...")
+        logger.info("🔐 Creating system permissions...")
         
         permissions = [
             # User management
@@ -194,7 +194,7 @@ class DatabaseSeeder:
         # self.db.permissions.delete_many({}) # Handled by drop_existing
         
         result = self.db.permissions.insert_many(permissions)
-        logger.info(f"Created {len(result.inserted_ids)} permissions\n")
+        logger.info(f"✅ Created {len(result.inserted_ids)} permissions\n")
         
         return {perm["code"]: perm_id for perm, perm_id in zip(permissions, result.inserted_ids)}
     
@@ -209,8 +209,8 @@ class DatabaseSeeder:
         # Admin: ALL permissions (Full Access)
         admin_perms = list(permission_ids.values())
         
-        # Employee: Tạo dataset, upload tài liệu, chat với bot (KHÔNG tạo chatbot)
-        employee_perms = [
+        # Teacher: Tạo dataset, upload tài liệu, chat với bot (KHÔNG tạo chatbot)
+        teacher_perms = [
             get_perm("datasets:view"),
             get_perm("datasets:create"),
             get_perm("datasets:update"),
@@ -220,14 +220,14 @@ class DatabaseSeeder:
             get_perm("chatbots:use"),  # Chỉ sử dụng chatbot để chat
         ]
         # Remove None values
-        employee_perms = [p for p in employee_perms if p]
+        teacher_perms = [p for p in teacher_perms if p]
 
-        # Intern/Guest: Chỉ chat với bot
-        intern_guest_perms = [
+        # Student: Chỉ chat với bot
+        student_perms = [
             get_perm("chatbots:use"),
         ]
         # Remove None values
-        intern_guest_perms = [p for p in intern_guest_perms if p]
+        student_perms = [p for p in student_perms if p]
 
         # Create role-permission mappings
         mappings = []
@@ -245,14 +245,14 @@ class DatabaseSeeder:
                 })
 
         add_mapping("admin", admin_perms)
-        add_mapping("employee", employee_perms)
-        add_mapping("intern_guest", intern_guest_perms)
+        add_mapping("teacher", teacher_perms)
+        add_mapping("student", student_perms)
         
         if mappings:
             self.db.role_permissions.insert_many(mappings)
-            logger.info(f"Assigned {len(mappings)} permissions to roles\n")
+            logger.info(f"✅ Assigned {len(mappings)} permissions to roles\n")
         else:
-            logger.warning("No permissions assigned (check role/perm codes)")
+            logger.warning("⚠️ No permissions assigned (check role/perm codes)")
 
     def seed_users(self, role_ids: Dict[str, any]):
         """
@@ -268,13 +268,12 @@ class DatabaseSeeder:
         
         # Verify hash ngay lập tức
         if not pwd_context.verify(password, hashed_password):
-            raise ValueError("Password hash verification failed!")
+            raise ValueError("❌ Password hash verification failed!")
         
         users = [
             {
                 "email": "admin@airc.edu.vn",
                 "full_name": "Admin AIRC",
-                "department": "Ban Giam Doc",
                 "hashed_password": hashed_password,
                 "role_code": "admin",
                 "is_active": True,
@@ -283,22 +282,20 @@ class DatabaseSeeder:
                 "updated_at": datetime.utcnow()
             },
             {
-                "email": "nhanvien01@airc.edu.vn",
-                "full_name": "Nhân viên AIRC 01",
-                "department": "Phong Ky Thuat",
+                "email": "nguyen.van.a@airc.edu.vn",
+                "full_name": "TS. Nguyễn Văn A",
                 "hashed_password": hashed_password,
-                "role_code": "employee",
+                "role_code": "teacher",
                 "is_active": True,
                 "is_verified": True,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             },
             {
-                "email": "intern01@guest.airc.edu.vn",
-                "full_name": "Thực tập sinh/Khách 01",
-                "department": "Thuc Tap Sinh",
+                "email": "sv01@student.airc.edu.vn",
+                "full_name": "Hoàng Quốc Bảo",
                 "hashed_password": hashed_password,
-                "role_code": "intern_guest",
+                "role_code": "student",
                 "is_active": True,
                 "is_verified": True,
                 "created_at": datetime.utcnow(),
@@ -311,7 +308,7 @@ class DatabaseSeeder:
             role_code = user.pop("role_code")
             
             if role_code not in role_ids:
-                logger.error(f"Role {role_code} not found for user {user['email']}")
+                logger.error(f"❌ Role {role_code} not found for user {user['email']}")
                 continue
                 
             try:
@@ -326,16 +323,16 @@ class DatabaseSeeder:
                     "assigned_at": datetime.utcnow()
                 })
                 
-                logger.info(f"Created: {user['email']} ({role_code})")
+                logger.info(f"   - Created: {user['email']} ({role_code})")
             except Exception as e:
-                logger.error(f"Failed to create {user['email']}: {e}")
+                logger.error(f"   ❌ Failed to create {user['email']}: {e}")
         
-        logger.info(f"User creation completed\n")
+        logger.info(f"✅ User creation completed\n")
     
     def verify_data(self):
         """Verify dữ liệu đã seed"""
         logger.info("=" * 80)
-        logger.info("DATABASE SEEDING COMPLETED!")
+        logger.info("✅ DATABASE SEEDING COMPLETED!")
         logger.info("=" * 80)
         
         # Count documents
@@ -343,13 +340,13 @@ class DatabaseSeeder:
         roles_count = self.db.roles.count_documents({})
         permissions_count = self.db.permissions.count_documents({})
         
-        logger.info(f"\nStatistics:")
+        logger.info(f"\n📊 Statistics:")
         logger.info(f"   - Users: {users_count}")
         logger.info(f"   - Roles: {roles_count}")
         logger.info(f"   - Permissions: {permissions_count}")
         
         # Show login credentials
-        logger.info(f"\nLogin Credentials (Password: Pass123):")
+        logger.info(f"\n🔑 Login Credentials (Password: Pass123):")
         logger.info("   " + "-" * 76)
         logger.info(f"   {'Email':<35} {'Role':<15} {'Password':<15}")
         logger.info("   " + "-" * 76)
@@ -367,7 +364,7 @@ class DatabaseSeeder:
             logger.info(f"   {user['email']:<35} {role_name:<15} Pass123")
         
         logger.info("   " + "-" * 76)
-        logger.info(f"\nReady to test! Run: python tester/test_complete_47_apis.py")
+        logger.info(f"\n🎉 Ready to test! Run: python tester/test_complete_47_apis.py")
         logger.info("=" * 80 + "\n")
     
     def run(self, drop_existing: bool = True):
@@ -393,7 +390,7 @@ class DatabaseSeeder:
             self.verify_data()
             
         except Exception as e:
-            logger.error(f"\nSeeding failed: {e}")
+            logger.error(f"\n❌ Seeding failed: {e}")
             traceback.print_exc()
             raise
         finally:
@@ -411,13 +408,13 @@ def main():
         if in_docker:
             # Trong Docker container, dùng service name
             mongodb_url = "mongodb://mongodb:27017"
-            logger.info("Running inside Docker container")
+            logger.info("🐳 Running inside Docker container")
         else:
             # Chạy từ host machine
             mongodb_url = "mongodb://localhost:27017"
-            logger.info("Running on host machine")
+            logger.info("💻 Running on host machine")
     else:
-        logger.info(f"Using MONGODB_URL from environment")
+        logger.info(f"📡 Using MONGODB_URL from environment")
     
     db_name = os.getenv('MONGODB_DB_NAME', 'airc_auth_db')
     

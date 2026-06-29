@@ -36,7 +36,7 @@ async def ask_question(
             history = [msg.dict() for msg in request.history]
         
         # Build User Context for RBAC
-        # CRITICAL FIX: Normalize role to lowercase string (e.g., "admin", "employee", "intern_guest")
+        # CRITICAL FIX: Normalize role to lowercase string (e.g., "admin", "teacher", "student")
         # Extract from UserRole enum safely
         if hasattr(current_user.role, "value"):
             role_str = current_user.role.value.lower()
@@ -48,8 +48,7 @@ async def ask_question(
         
         user_ctx = {
             "role": role_str, 
-            "id": current_user.user_id,
-            "department": current_user.department
+            "id": current_user.user_id
         }
 
         result = await chat_service.ask_question(

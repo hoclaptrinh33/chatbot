@@ -40,8 +40,8 @@ export default function ChatInput({ onSend, isLoading, disabled }: ChatInputProp
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={disabled
-                        ? "Vui lòng chọn ít nhất một dataset để bắt đầu..."
-                        : "Đặt câu hỏi cho AI..."
+                        ? "Vui long chon it nhat mot dataset de bat dau..."
+                        : "Dat cau hoi cho AI..."
                     }
                     autoSize={{ minRows: 1, maxRows: 4 }}
                     disabled={disabled}
@@ -56,11 +56,11 @@ export default function ChatInput({ onSend, isLoading, disabled }: ChatInputProp
                     disabled={!message.trim() || disabled}
                     className="h-auto py-2 bg-red-700 hover:bg-red-800 border-red-700"
                 >
-                    Gửi
+                    Gui
                 </Button>
             </div>
             <div className="text-center text-xs text-gray-400 mt-2">
-                AI có thể mắc lỗi. Vui lòng kiểm tra lại thông tin quan trọng.
+                AI co the mac loi. Vui long kiem tra lai thong tin quan trong.
             </div>
         </div>
     );

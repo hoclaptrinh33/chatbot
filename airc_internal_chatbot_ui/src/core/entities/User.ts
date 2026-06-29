@@ -5,8 +5,8 @@
 
 export enum UserRole {
     ADMIN = 'admin',
-    EMPLOYEE = 'employee',
-    INTERN_GUEST = 'intern_guest'
+    TEACHER = 'teacher',
+    STUDENT = 'student'
 }
 
 export enum Permission {
@@ -50,7 +50,6 @@ export interface User {
     id: string;
     email: string;
     full_name: string;
-    department?: string;
     role: UserRole | string;
     is_active: boolean;
     avatar_url?: string;

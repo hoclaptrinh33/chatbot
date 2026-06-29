@@ -10,7 +10,6 @@ export interface Dataset {
     created_at: string;
     visibility?: string; // private, shared, etc.
     status?: string;
-    shared_with?: string[];
 }
 
 // Enum for Dataset File Status (aligned with Backend)

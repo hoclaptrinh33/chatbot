@@ -141,13 +141,13 @@ export default function ChatSidebar({ className }: { className?: string }) {
 
     // Filter sessions
     const filteredSessions = sessions.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase())
+        !s.parent_id && s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
-        <Card
-            className={`flex flex-col h-full shadow-sm ${className}`}
-            bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', height: '100%' }}
+        <div
+            className={`flex flex-col h-full ${className}`}
+            style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
         >
             {/* Nút tạo chat mới */}
             <div className="p-3 border-b space-y-3">
@@ -185,6 +185,6 @@ export default function ChatSidebar({ className }: { className?: string }) {
 
             {/* Footer Actions if needed (like Clear Screen but maybe move to header?) */}
             {/* Keeping it simple as requested "Delete unnecessary things" */}
-        </Card>
+        </div>
     );
 }

@@ -1,5 +1,4 @@
 import { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { storageService } from '@/services/storageService';
 
 /**
  * Request Interceptor - Thêm token vào header
@@ -13,8 +12,8 @@ import { getAuthToken } from '@/stores/authStore';
  */
 export const authRequestInterceptor = (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
-        // Ưu tiên token trong store, fallback từ storage khi store chưa hydrate
-        const token = getAuthToken() || storageService.getAccessToken();
+        // Use the centralized helper from authStore to get the token
+        const token = getAuthToken();
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -33,9 +32,8 @@ export const authErrorInterceptor = (error: AxiosError) => {
             const isAuthPage = currentPath.startsWith('/auth/');
 
             if (!isAuthPage) {
-                // Dọn auth state nhất quán (cookie + localStorage)
-                storageService.removeAccessToken();
-                localStorage.removeItem('airc-auth-storage');
+                // Chỉ redirect khi KHÔNG ở trang auth
+                localStorage.removeItem('access_token');
                 localStorage.removeItem('user_info');
                 window.location.href = '/auth/login';
             } else {

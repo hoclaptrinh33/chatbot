@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
     
-    # Gemini LLM
-    gemini_api_key: str
-    gemini_model: str = "models/gemini-2.5-flash"
+    # LLM Provider Configuration (OpenAI-compatible / Local or Cloud)
+    llm_api_base_url: str = "http://localhost:11434/v1"
+    llm_model_name: str = "gemma-4-26b-qat"
+    llm_api_key: Optional[str] = "ollama"
     
     # Qdrant Vector DB
     qdrant_url: str = "http://qdrant:6333"

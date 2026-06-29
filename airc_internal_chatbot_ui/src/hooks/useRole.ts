@@ -14,14 +14,14 @@ export const useRole = () => {
     };
 
     const isAdmin = user?.role === 'admin';
-    const isEmployee = user?.role === 'employee';
-    const isInternGuest = user?.role === 'intern_guest';
+    const isTeacher = user?.role === 'teacher';
+    const isStudent = user?.role === 'student';
 
     return {
         role: user?.role,
         hasRole,
         isAdmin,
-        isEmployee,
-        isInternGuest
+        isTeacher,
+        isStudent
     };
 };
