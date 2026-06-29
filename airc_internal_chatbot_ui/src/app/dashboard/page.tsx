@@ -28,7 +28,7 @@ const { Title, Text } = Typography;
  * Vi dashboard/layout.tsx da wrap tat ca children voi MainLayout roi
  */
 export default function DashboardPage() {
-    const { user, checkAuth } = useAuthStore();
+    const { user } = useAuthStore();
     const [mounted, setMounted] = useState(false);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -59,32 +59,14 @@ export default function DashboardPage() {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
-
-        // User info may still be missing right after token rehydrate.
-        // Trigger checkAuth to avoid rendering stale/fallback profile data.
-        if (!user) {
-            checkAuth();
-            return;
-        }
-
-        if (user?.role === 'intern_guest') {
+        if (user?.role === 'student') {
             router.push('/dashboard/chat');
         } else {
             fetchDashboardData();
         }
-    }, [user, router, checkAuth]);
+    }, [user, router]);
 
-    if (user?.role === 'intern_guest') return null; // Prevent flash of dashboard content
-
-    if (!user) {
-        return (
-            <AuthGuard>
-                <div className="py-20 flex justify-center">
-                    <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
-                </div>
-            </AuthGuard>
-        );
-    }
+    if (user?.role === 'student') return null; // Prevent flash of dashboard content
 
     // Helper function to format time ago
     const formatTimeAgo = (timestamp: string) => {
@@ -135,10 +117,10 @@ export default function DashboardPage() {
                     </div>
                     <div>
                         <Title level={2} className="!mb-0" style={{ color: '#1a1a2e' }}>
-                            Xin chào, {mounted ? user.full_name : ''}!
+                            Xin chào, {mounted ? (user?.full_name || 'Quản trị viên') : 'Quản trị viên'}!
                         </Title>
                         <Text type="secondary" style={{ fontSize: 15 }}>
-                            Chào mừng bạn đến với hệ thống AIRC chatbot nội bộ
+                            Chào mừng bạn đến với hệ thống AIRC Internal Chatbot
                         </Text>
                     </div>
                 </div>
@@ -157,7 +139,7 @@ export default function DashboardPage() {
                                 <RobotOutlined style={{ fontSize: 24, color: '#fff' }} />
                             </div>
                             <div>
-                                <Text type="secondary" className="text-sm">Chatbot</Text>
+                                <Text type="secondary" className="text-sm">Chatbots</Text>
                                 <div className="text-2xl font-bold" style={{ color: '#10b981' }}>
                                     {loading ? <LoadingOutlined /> : stats?.chatbot_count ?? 0}
                                 </div>
@@ -176,7 +158,7 @@ export default function DashboardPage() {
                                 <DatabaseOutlined style={{ fontSize: 24, color: '#fff' }} />
                             </div>
                             <div>
-                                <Text type="secondary" className="text-sm">Dataset</Text>
+                                <Text type="secondary" className="text-sm">Datasets</Text>
                                 <div className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
                                     {loading ? <LoadingOutlined /> : stats?.dataset_count ?? 0}
                                 </div>
@@ -287,14 +269,14 @@ export default function DashboardPage() {
                             </div>
                             <Divider className="my-2" />
                             <div className="flex justify-between items-center">
-                                <Text type="secondary">Tỷ lệ cache hit</Text>
+                                <Text type="secondary">Cache hit rate</Text>
                                 <Text strong style={{ color: '#8b5cf6' }}>
                                     {loading ? <LoadingOutlined /> : `${stats?.cache_hit_rate ?? 0}%`}
                                 </Text>
                             </div>
                             <Divider className="my-2" />
                             <div className="flex justify-between items-center">
-                                <Text type="secondary">Tổng chunks đã lập chỉ mục</Text>
+                                <Text type="secondary">Tổng chunks indexed</Text>
                                 <Text strong>
                                     {loading ? <LoadingOutlined /> : (stats?.total_chunks_indexed ?? 0).toLocaleString()}
                                 </Text>

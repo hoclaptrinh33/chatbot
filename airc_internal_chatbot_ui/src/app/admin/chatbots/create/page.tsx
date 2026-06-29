@@ -17,9 +17,10 @@ import {
     Col,
     Tooltip,
     Alert,
-    Tag
+    Tag,
+    AutoComplete
 } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { SaveOutlined, ArrowLeftOutlined, QuestionCircleOutlined, LockOutlined } from '@ant-design/icons';
 import MainLayout from '@/components/Layout/MainLayout';
 import AuthGuard from '@/components/Auth/AuthGuard';
 import { chatbotService } from '@/services/chatbotService';
@@ -27,8 +28,6 @@ import datasetService from '@/services/datasetService';
 import { ChatbotCreate } from '@/types/chatbot';
 import { Dataset } from '@/core/entities/Dataset';
 import { useRouter } from 'next/navigation';
-import useAuthStore from '@/stores/authStore';
-import { authService, User } from '@/services/authService';
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -36,23 +35,34 @@ const { TextArea } = Input;
 
 export default function CreateChatbotPage() {
     const router = useRouter();
-    const { token } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
-    const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
-    const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
+    const [rolesWithChatbot, setRolesWithChatbot] = useState<string[]>([]);
+    const [llmModels, setLlmModels] = useState<string[]>([]);
     const [form] = Form.useForm();
 
     const noContextBehavior = Form.useWatch('no_context_behavior', form);
 
     useEffect(() => {
         fetchDatasets();
+        fetchRolesWithChatbot();
+        fetchLLMModels();
     }, []);
 
-    useEffect(() => {
-        if (!token) return;
-        fetchAssignableUsers(token);
-    }, [token]);
+    const fetchLLMModels = async () => {
+        try {
+            const data = await chatbotService.getLLMModels();
+            setLlmModels(data.models);
+            if (data.default_model) {
+                form.setFieldsValue({
+                    model: data.default_model
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch LLM models", error);
+            setLlmModels([]);
+        }
+    };
 
     const fetchDatasets = async () => {
         try {
@@ -64,23 +74,12 @@ export default function CreateChatbotPage() {
         }
     };
 
-    const fetchAssignableUsers = async (accessToken: string) => {
+    const fetchRolesWithChatbot = async () => {
         try {
-            const users = await authService.getAllUsers(accessToken);
-            setAssignableUsers(users);
-
-            const departments = Array.from(
-                new Set(
-                    users
-                        .map((u) => (u.department || '').trim())
-                        .filter((dep) => dep.length > 0)
-                )
-            ).sort((a, b) => a.localeCompare(b, 'vi'));
-
-            setDepartmentOptions(departments);
+            const roles = await chatbotService.getRolesWithChatbot();
+            setRolesWithChatbot(roles);
         } catch (error) {
-            console.error('Failed to fetch users for chatbot access', error);
-            message.error('Không thể tải danh sách người dùng/phòng ban');
+            console.error("Failed to fetch roles with chatbot", error);
         }
     };
 
@@ -94,8 +93,7 @@ export default function CreateChatbotPage() {
                 description: (values.description as string) || undefined,
                 icon: (values.icon as string) || undefined,
                 visibility: (values.visibility as 'public' | 'private') || 'public',
-                allowed_user_ids: (values.allowed_user_ids as string[]) || [],
-                allowed_departments: (values.allowed_departments as string[]) || [],
+                allowed_roles: (values.allowed_roles as string[]) || ['admin'],
                 dataset_ids: (values.dataset_ids as string[]) || [],
                 // Config object - Backend sẽ dùng default nếu không gửi field
                 config: {
@@ -109,7 +107,7 @@ export default function CreateChatbotPage() {
                     reranker: (values.reranker as string) || 'Semantic',
                     rerank_top_n: (values.rerank_top_n as number) || undefined,
                     // LLM Generation
-                    model: (values.model as string) || 'models/gemini-2.5-flash',
+                    model: (values.model as string) || undefined,
                     api_key: (values.api_key as string) || undefined,
                     temperature: (values.temperature as number) ?? 0.7,
                     max_tokens: (values.max_tokens as number) || 2048,
@@ -160,9 +158,9 @@ export default function CreateChatbotPage() {
                     <div style={{ maxWidth: 800, margin: '0 auto 32px' }}>
                         <Breadcrumb
                             items={[
-                                { title: 'Tổng quan', href: '/dashboard' },
+                                { title: 'Dashboard', href: '/dashboard' },
                                 { title: 'Admin' },
-                                { title: 'Chatbot', href: '/admin/chatbots' },
+                                { title: 'Chatbots', href: '/admin/chatbots' },
                                 { title: 'Tạo mới' },
                             ]}
                         />
@@ -176,15 +174,15 @@ export default function CreateChatbotPage() {
                     <div style={{ maxWidth: 800, margin: '0 auto 24px' }}>
                         <Card style={{ borderRadius: 8 }}>
                             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                                <span style={{ fontWeight: 600, fontSize: 14, color: '#666' }}>Luồng RAG Pipeline</span>
+                                <span style={{ fontWeight: 600, fontSize: 14, color: '#666' }}>RAG Pipeline Flow</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 {[
-                                    { step: '1', label: 'Câu hỏi', desc: 'Đầu vào', color: '#1890ff' },
+                                    { step: '1', label: 'Query', desc: 'Câu hỏi', color: '#1890ff' },
                                     { step: '2', label: 'Embedding', desc: 'Vector hóa', color: '#1890ff' },
                                     { step: '3', label: 'Retrieval', desc: 'Tìm kiếm', color: '#13c2c2' },
                                     { step: '4', label: 'Reranking', desc: 'Sắp xếp', color: '#722ed1' },
-                                    { step: '5', label: 'Sinh phản hồi', desc: 'Trả lời', color: '#fa8c16' },
+                                    { step: '5', label: 'Generation', desc: 'Trả lời', color: '#fa8c16' },
                                 ].map((item, idx) => (
                                     <React.Fragment key={item.step}>
                                         <div style={{ textAlign: 'center', flex: '0 0 auto' }}>
@@ -215,14 +213,13 @@ export default function CreateChatbotPage() {
                             scrollToFirstError
                             initialValues={{
                                 visibility: 'public',
-                                allowed_user_ids: [],
-                                allowed_departments: [],
+                                allowed_roles: ['admin'], // Mặc định chỉ admin, các role khác phải chọn thủ công
                                 embedding_model: 'vietnamese-sbert',
                                 search_mode: 'hybrid',
                                 top_k: 5,
                                 similarity_threshold: 0.5,
                                 reranker: 'ms-marco-MiniLM-L-6-v2',
-                                model: 'models/gemini-2.5-flash',
+                                model: undefined,
                                 temperature: 0.7,
                                 max_tokens: 2048,
                                 no_context_behavior: 'reject',
@@ -260,10 +257,10 @@ export default function CreateChatbotPage() {
                                 style={{ marginBottom: 24, borderRadius: 8 }}
                                 styles={{ header: { borderBottom: '2px solid #52c41a' } }}
                             >
-                                <Form.Item name="dataset_ids" label="Dataset">
+                                <Form.Item name="dataset_ids" label="Datasets">
                                     <Select
                                         mode="multiple"
-                                        placeholder="Chọn dataset làm cơ sở tri thức..."
+                                        placeholder="Chọn datasets làm knowledge base..."
                                         size="large"
                                     >
                                         {datasets.map(ds => (
@@ -353,8 +350,8 @@ export default function CreateChatbotPage() {
                                     <Form.Item name="search_mode" label="Chiến lược" style={{ marginBottom: 16 }}>
                                         <Radio.Group>
                                             <Radio.Button value="hybrid">Hybrid <Tag color="green">Khuyến nghị</Tag></Radio.Button>
-                                            <Radio.Button value="vector">Chỉ vector</Radio.Button>
-                                            <Radio.Button value="keyword">Chỉ từ khóa</Radio.Button>
+                                            <Radio.Button value="vector">Vector Only</Radio.Button>
+                                            <Radio.Button value="keyword">Keyword Only</Radio.Button>
                                         </Radio.Group>
                                     </Form.Item>
 
@@ -439,7 +436,7 @@ export default function CreateChatbotPage() {
 
                             {/* SECTION 4: LLM GENERATION */}
                             <Card
-                                title="Sinh phản hồi LLM"
+                                title="LLM Generation"
                                 style={{ marginBottom: 24, borderRadius: 8 }}
                                 styles={{ header: { borderBottom: '2px solid #fa8c16' } }}
                             >
@@ -456,12 +453,19 @@ export default function CreateChatbotPage() {
                                     <span style={{ fontWeight: 500 }}>Sinh câu trả lời từ AI</span>
                                 </div>
 
-                                <Form.Item name="model" label="Mô hình AI">
-                                    <Select size="large">
-                                        <Option value="models/gemini-2.5-flash">Gemini 2.5 Flash <Tag color="green">Nhanh</Tag></Option>
-                                        <Option value="models/gemini-2.5-pro">Gemini 2.5 Pro <Tag color="purple">Thông minh</Tag></Option>
-                                        <Option value="models/gemini-2.0-flash">Gemini 2.0 Flash</Option>
-                                    </Select>
+                                <Form.Item
+                                    name="model"
+                                    label="AI Model"
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                >
+                                    <AutoComplete
+                                        size="large"
+                                        placeholder="Chọn từ danh sách hoặc tự nhập tên model (VD: gemma-4-26b-qat, qwen-3.6-35b...)"
+                                        options={llmModels.map(m => ({ value: m, label: m }))}
+                                        filterOption={(inputValue, option) =>
+                                            option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
+                                        }
+                                    />
                                 </Form.Item>
 
                                 <Form.Item name="api_key" label="API Key riêng (tùy chọn)">
@@ -481,7 +485,7 @@ export default function CreateChatbotPage() {
                                     </Col>
                                 </Row>
 
-                                <Form.Item name="system_prompt" label="Prompt hệ thống" style={{ marginBottom: 0 }}>
+                                <Form.Item name="system_prompt" label="System Prompt" style={{ marginBottom: 0 }}>
                                     <TextArea
                                         rows={4}
                                         placeholder="VD: Bạn là trợ lý AI của AIRC. Trả lời ngắn gọn, trích dẫn nguồn..."
@@ -540,48 +544,45 @@ export default function CreateChatbotPage() {
                                 <Row gutter={48}>
                                     <Col span={14}>
                                         <Form.Item
-                                            name="allowed_user_ids"
-                                            label="Người dùng được phép sử dụng"
+                                            name="allowed_roles"
+                                            label="Vai trò được phép sử dụng"
+                                            rules={[{ required: true, message: 'Chọn ít nhất 1 vai trò' }]}
                                         >
                                             <Select
                                                 mode="multiple"
                                                 size="large"
-                                                placeholder="Chọn người dùng cụ thể..."
+                                                placeholder="Chọn vai trò..."
                                                 style={{ width: '100%' }}
-                                                optionFilterProp="label"
-                                                options={assignableUsers.map((u) => ({
-                                                    value: u.id,
-                                                    label: `${u.full_name} (${u.email})${u.department ? ` - ${u.department}` : ''}`,
-                                                }))}
                                             >
+                                                <Option value="admin">Admin</Option>
+                                                <Option
+                                                    value="teacher"
+                                                    disabled={rolesWithChatbot.includes('teacher')}
+                                                >
+                                                    Teacher {rolesWithChatbot.includes('teacher') && <LockOutlined style={{ marginLeft: 8 }} />}
+                                                </Option>
+                                                <Option
+                                                    value="student"
+                                                    disabled={rolesWithChatbot.includes('student')}
+                                                >
+                                                    Student {rolesWithChatbot.includes('student') && <LockOutlined style={{ marginLeft: 8 }} />}
+                                                </Option>
                                             </Select>
                                         </Form.Item>
-                                        <Form.Item
-                                            name="allowed_departments"
-                                            label="Phòng ban được phép sử dụng"
-                                            style={{ marginTop: -8 }}
-                                        >
-                                            <Select
-                                                mode="multiple"
-                                                size="large"
-                                                placeholder="Chọn phòng ban..."
-                                                style={{ width: '100%' }}
-                                                options={departmentOptions.map((dep) => ({ value: dep, label: dep }))}
+                                        {rolesWithChatbot.length > 0 && (
+                                            <Alert
+                                                type="info"
+                                                message="Lưu ý: Mỗi role (trừ Admin) chỉ được gán 1 chatbot. Roles đã có chatbot sẽ bị khóa."
+                                                showIcon
+                                                style={{ marginTop: -16, marginBottom: 16 }}
                                             />
-                                        </Form.Item>
-
-                                        <Alert
-                                            type="warning"
-                                            message="Nếu cả hai danh sách đều rỗng, chatbot sẽ ở chế độ riêng tư và chỉ quản trị viên sử dụng được."
-                                            showIcon
-                                            style={{ marginTop: -8, marginBottom: 8 }}
-                                        />
+                                        )}
                                     </Col>
                                     <Col span={10}>
                                         <Form.Item name="visibility" label="Chế độ hiển thị">
                                             <Radio.Group>
-                                                <Radio.Button value="public">Công khai</Radio.Button>
-                                                <Radio.Button value="private">Riêng tư</Radio.Button>
+                                                <Radio.Button value="public">Public</Radio.Button>
+                                                <Radio.Button value="private">Private</Radio.Button>
                                             </Radio.Group>
                                         </Form.Item>
                                     </Col>

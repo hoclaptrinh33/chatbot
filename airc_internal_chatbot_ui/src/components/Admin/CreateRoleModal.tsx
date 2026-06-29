@@ -36,8 +36,8 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
             await rbacService.createRole(payload, token);
 
             notification.success({
-                message: 'Thành công',
-                description: 'Tạo role mới thành công',
+                message: 'Thanh cong',
+                description: 'Tao role moi thanh cong',
             });
 
             form.resetFields();
@@ -45,8 +45,8 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Lỗi',
-                description: err.response?.data?.detail || 'Không thể tạo role',
+                message: 'Loi',
+                description: err.response?.data?.detail || 'Khong the tao role',
             });
         } finally {
             setLoading(false);
@@ -55,13 +55,13 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
 
     return (
         <Modal
-            title="Tạo vai trò mới"
+            title="Tao Role Moi"
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Tạo mới"
-            cancelText="Hủy"
+            okText="Tao moi"
+            cancelText="Huy"
         >
             <Form
                 form={form}
@@ -70,25 +70,25 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({
             >
                 <Form.Item
                     name="name"
-                    label="Tên vai trò"
-                    rules={[{ required: true, message: 'Vui lòng nhập tên role' }]}
+                    label="Ten Role"
+                    rules={[{ required: true, message: 'Vui long nhap ten role' }]}
                 >
-                    <Input placeholder="Ví dụ: Manager" />
+                    <Input placeholder="Vi du: Manager" />
                 </Form.Item>
 
                 <Form.Item
                     name="code"
-                    label="Mã (duy nhất)"
-                    tooltip="Mã định danh vai trò (ví dụ: manager). Tự động tạo nếu để trống."
+                    label="Code (Unique)"
+                    tooltip="Ma dinh danh role (e.g., manager). Tu dong tao neu de trong."
                 >
                     <Input placeholder="manager" />
                 </Form.Item>
 
                 <Form.Item
                     name="description"
-                    label="Mô tả"
+                    label="Mo ta"
                 >
-                    <Input.TextArea rows={3} placeholder="Mô tả về Vai trò này" />
+                    <Input.TextArea rows={3} placeholder="Mo ta ve role nay" />
                 </Form.Item>
             </Form>
         </Modal>

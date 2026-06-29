@@ -35,8 +35,8 @@ const AssignPermissionsModal: React.FC<AssignPermissionsModalProps> = ({
             setLocalMatrix(data.matrix); // Initialize local state
         } catch (_error: unknown) {
             notification.error({
-                message: 'Lỗi tải dữ liệu',
-                description: 'Không thể tải ma trận phân quyền.',
+                message: 'Loi tai du lieu',
+                description: 'Khong the tai matrix phan quyen.',
             });
         } finally {
             setLoading(false);
@@ -73,15 +73,15 @@ const AssignPermissionsModal: React.FC<AssignPermissionsModalProps> = ({
             await rbacService.assignPermissionsToRole(role.id || role._id!, permIds, token);
 
             notification.success({
-                message: 'Thành công',
-                description: `Đã cập nhật permissions cho vai trò ${role.name}`,
+                message: 'Thanh cong',
+                description: `Da cap nhat permissions cho role ${role.name}`,
             });
             onSuccess();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Lỗi lưu',
-                description: err.response?.data?.detail || 'Không thể lưu thay đổi.',
+                message: 'Loi luu',
+                description: err.response?.data?.detail || 'Khong the luu thay doi.',
             });
         } finally {
             setSubmitting(false);
@@ -90,16 +90,16 @@ const AssignPermissionsModal: React.FC<AssignPermissionsModalProps> = ({
 
     return (
         <Drawer
-            title={`Phân quyền cho vai trò: ${role?.name} (Dạng ma trận)`}
+            title={`Phan quyen cho Role: ${role?.name} (Matrix View)`}
             placement="right"
             onClose={onCancel}
             open={visible}
             width={1200} // Wide enough for Matrix
             extra={
                 <Space>
-                    <Button onClick={onCancel}>Hủy</Button>
+                    <Button onClick={onCancel}>Huy</Button>
                     <Button type="primary" onClick={handleSubmit} loading={submitting}>
-                        Lưu thay đổi
+                        Luu thay doi
                     </Button>
                 </Space>
             }
@@ -107,7 +107,7 @@ const AssignPermissionsModal: React.FC<AssignPermissionsModalProps> = ({
             <div className="p-4" style={{ minHeight: '100%' }}>
                 {loading || !matrixData ? (
                     <div className="flex justify-center items-center h-64">
-                        <Spin tip="Đang tải ma trận..." />
+                        <Spin tip="Dang tai matrix..." />
                     </div>
                 ) : (
                     <PermissionMatrix

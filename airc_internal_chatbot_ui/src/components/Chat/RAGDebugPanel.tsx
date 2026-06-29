@@ -78,7 +78,7 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
         },
         {
             key: 'retrieval',
-            stage: '2. Truy xuất',
+            stage: '2. Retrieval',
             description: 'Tìm kiếm chunks từ vector DB',
             time: metrics.retrieval_time_ms,
             percentage: ((metrics.retrieval_time_ms / metrics.total_time_ms) * 100).toFixed(1),
@@ -94,7 +94,7 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
         },
         {
             key: 'llm',
-            stage: '4. Sinh phản hồi LLM',
+            stage: '4. LLM Generation',
             description: 'Sinh câu trả lời từ AI',
             time: metrics.llm_time_ms,
             percentage: ((metrics.llm_time_ms / metrics.total_time_ms) * 100).toFixed(1),
@@ -185,12 +185,12 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <BarChartOutlined style={{ fontSize: 16, color: '#1890ff' }} />
-                    <Text strong style={{ color: '#333' }}>Debug hiệu năng RAG</Text>
+                    <Text strong style={{ color: '#333' }}>RAG Performance Debug</Text>
                     {metrics.cache_hit && (
                         <Tag color="green" icon={<ThunderboltOutlined />}>CACHE HIT</Tag>
                     )}
                     {metrics.no_context && (
-                        <Tag color="orange">KHÔNG CÓ NGỮ CẢNH</Tag>
+                        <Tag color="orange">NO CONTEXT</Tag>
                     )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -201,7 +201,7 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
                     </Tooltip>
                     <Tooltip title="Độ chính xác cao nhất">
                         <Tag color={accuracyRating.color} style={{ margin: 0 }}>
-                            Điểm: {(metrics.top_similarity_score * 100).toFixed(0)}%
+                            Score: {(metrics.top_similarity_score * 100).toFixed(0)}%
                         </Tag>
                     </Tooltip>
                     <Text type="secondary" style={{ fontSize: 12 }}>
@@ -235,12 +235,12 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
                                 prefix={<DatabaseOutlined />}
                             />
                             <Text type="secondary" style={{ fontSize: 11 }}>
-                                {metrics.datasets_searched} dataset
+                                {metrics.datasets_searched} dataset(s)
                             </Text>
                         </Col>
                         <Col span={6}>
                             <Statistic
-                                title={<Text type="secondary" style={{ fontSize: 12 }}>Độ tương đồng cao nhất</Text>}
+                                title={<Text type="secondary" style={{ fontSize: 12 }}>Top Similarity</Text>}
                                 value={(metrics.top_similarity_score * 100).toFixed(1)}
                                 suffix="%"
                                 valueStyle={{ color: accuracyRating.color, fontSize: 20 }}
@@ -249,7 +249,7 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
                         </Col>
                         <Col span={6}>
                             <Statistic
-                                title={<Text type="secondary" style={{ fontSize: 12 }}>Độ tương đồng trung bình</Text>}
+                                title={<Text type="secondary" style={{ fontSize: 12 }}>Avg Similarity</Text>}
                                 value={(metrics.avg_similarity_score * 100).toFixed(1)}
                                 suffix="%"
                                 valueStyle={{ fontSize: 20 }}
@@ -278,7 +278,7 @@ export default function RAGDebugPanel({ metrics }: RAGDebugPanelProps) {
                         borderTop: '1px solid #f0f0f0'
                     }}>
                         {metrics.model_used && (
-                            <Tag color="blue">Mô hình: {metrics.model_used}</Tag>
+                            <Tag color="blue">Model: {metrics.model_used}</Tag>
                         )}
                         {metrics.reranker_used && (
                             <Tag color="purple">Reranker: {metrics.reranker_used}</Tag>

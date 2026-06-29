@@ -20,7 +20,7 @@ const UserTable: React.FC<UserTableProps> = ({
 }) => {
     const columns = [
         {
-            title: 'Họ và tên',
+            title: 'Ho va Ten',
             dataIndex: 'full_name',
             key: 'full_name',
             render: (text: string) => <span className="font-medium">{text}</span>
@@ -31,14 +31,13 @@ const UserTable: React.FC<UserTableProps> = ({
             key: 'email',
         },
         {
-            title: 'Vai trò',
+            title: 'Base Role',
             dataIndex: 'role',
             key: 'role',
             render: (role: string) => {
                 let color = 'geekblue';
                 if (role === 'admin') color = 'volcano';
-                if (role === 'employee') color = 'green';
-                if (role === 'intern_guest') color = 'gold';
+                if (role === 'teacher') color = 'green';
                 return (
                     <Tag color={color}>
                         {role.toUpperCase()}
@@ -47,23 +46,17 @@ const UserTable: React.FC<UserTableProps> = ({
             }
         },
         {
-            title: 'Phòng ban/Đơn vị',
-            dataIndex: 'department',
-            key: 'department',
-            render: (department?: string) => department || 'Chưa cập nhật'
-        },
-        {
-            title: 'Trạng thái',
+            title: 'Trang thai',
             dataIndex: 'is_active',
             key: 'is_active',
             render: (active: boolean) => (
                 <Tag color={active ? 'success' : 'error'}>
-                    {active ? 'ĐANG HOẠT ĐỘNG' : 'TẠM KHÓA'}
+                    {active ? 'ACTIVE' : 'INACTIVE'}
                 </Tag>
             )
         },
         {
-            title: 'Hành động',
+            title: 'Hanh dong',
             key: 'action',
             render: (_: unknown, record: User) => (
                 <Space size="small">
@@ -72,19 +65,19 @@ const UserTable: React.FC<UserTableProps> = ({
                         onClick={() => onManageRoles(record)}
                         className="bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
                     >
-                        Vai trò
+                        Roles
                     </Button>
                     <Button
                         icon={<EditOutlined />}
                         onClick={() => onEditUser(record)}
                     >
-                        Sửa
+                        Sua
                     </Button>
                     <Popconfirm
-                        title="Bạn có chắc muốn xóa người dùng này?"
+                        title="Ban co chac muon xoa user nay?"
                         onConfirm={() => onDeleteUser(record)}
-                        okText="Xóa"
-                        cancelText="Hủy"
+                        okText="Xoa"
+                        cancelText="Huy"
                     >
                         <Button
                             danger

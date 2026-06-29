@@ -26,7 +26,7 @@ export default function RegisterPage() {
                 email: values.email,
                 password: values.password,
                 full_name: values.fullName,
-                role: UserRole.INTERN_GUEST,
+                role: UserRole.STUDENT, // Mac dinh la Sinh vien (Student)
             });
             message.success('Đăng ký thành công! Vui lòng đăng nhập.');
             router.push('/auth/login');
@@ -46,7 +46,7 @@ export default function RegisterPage() {
                 <div className="flex justify-center mb-4 relative h-16 w-full">
                     <Image
                         src="/logo_airc.jpg"
-                        alt="Logo AIRC"
+                        alt="AIRC Logo"
                         fill
                         className="object-contain"
                         priority
@@ -72,7 +72,7 @@ export default function RegisterPage() {
                 onFinish={onFinish}
                 layout="vertical"
                 size="large"
-                initialValues={{ role: UserRole.INTERN_GUEST }}
+                initialValues={{ role: UserRole.STUDENT }}
             >
                 <Form.Item
                     name="email"
@@ -132,10 +132,10 @@ export default function RegisterPage() {
                     />
                 </Form.Item>
 
-                {/* Role selection removed - Defaults to Intern/Guest */}
+                {/* Role selection removed - Defaults to Student */}
                 {/* <Form.Item name="role" label="Vai trò (Testing)" hidden>
                     <Select>
-                        <Option value={UserRole.INTERN_GUEST}>Thực tập sinh/Khách</Option>
+                        <Option value={UserRole.STUDENT}>Sinh viên</Option>
                     </Select>
                 </Form.Item> */}
 

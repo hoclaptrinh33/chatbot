@@ -79,8 +79,8 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, requiredRole, requiredP
             <div className="h-screen w-full flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <Spin size="large" />
-                    <div className="mt-4 text-gray-500 font-medium">Đang tải hệ thống AIRC...</div>
-                    <div className="text-xs text-gray-400 mt-2">Đang kiểm tra xác thực...</div>
+                    <div className="mt-4 text-gray-500 font-medium">Loading AIRC System...</div>
+                    <div className="text-xs text-gray-400 mt-2">Checking Auth...</div>
                 </div>
             </div>
         );

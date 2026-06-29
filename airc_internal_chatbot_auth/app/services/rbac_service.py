@@ -161,7 +161,7 @@ class RBACService:
     
     async def _get_user_role_code(self, user_id: str) -> Optional[str]:
         """
-        Lấy role code của user (admin, employee, intern_guest)
+        Lấy role code của user (admin, teacher, student)
         
         Args:
             user_id: User ID

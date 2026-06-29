@@ -2,7 +2,7 @@ import axios from 'axios';
 import { authErrorInterceptor, authRequestInterceptor } from './interceptors';
 
 // NEXT_PUBLIC_API_URL already includes /api/v1
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export const coreClient = axios.create({
     baseURL: BASE_URL,

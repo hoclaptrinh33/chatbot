@@ -2,6 +2,8 @@
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
+from app.core.config import settings
+
 class ChatbotConfigModel(BaseModel):
     """
     Cấu hình đầy đủ cho Chatbot RAG Pipeline
@@ -49,7 +51,7 @@ class ChatbotConfigModel(BaseModel):
     # 🤖 LLM GENERATION SETTINGS - Cấu hình sinh câu trả lời
     # ═══════════════════════════════════════════════════════════════
     model: Optional[str] = Field(
-        default="models/gemini-2.5-flash", 
+        default=settings.llm_model_name, 
         description="Model LLM sử dụng"
     )
     api_key: Optional[str] = Field(
@@ -99,10 +101,8 @@ class ChatbotCreate(BaseModel):
     # Knowledge linking
     dataset_ids: List[str] = Field(default_factory=list, description="Datasets linked to this chatbot")
     
-    # Legacy compatibility field (không còn là nguồn kiểm tra quyền chính)
-    allowed_roles: List[str] = Field(default=["intern_guest", "employee", "admin"], description="Legacy roles field for backward compatibility")
-    allowed_user_ids: List[str] = Field(default_factory=list, description="Danh sách user được phép sử dụng chatbot")
-    allowed_departments: List[str] = Field(default_factory=list, description="Danh sách phòng ban được phép sử dụng chatbot")
+    # RBAC - Chỉ theo role, không theo user cụ thể
+    allowed_roles: List[str] = Field(default=["student", "teacher", "admin"], description="Roles allowed to use this chatbot")
     visibility: str = Field(default="public", description="public, private")
 
 
@@ -114,8 +114,6 @@ class ChatbotUpdate(BaseModel):
     config: Optional[ChatbotConfigModel] = None
     dataset_ids: Optional[List[str]] = None
     allowed_roles: Optional[List[str]] = None
-    allowed_user_ids: Optional[List[str]] = None
-    allowed_departments: Optional[List[str]] = None
     visibility: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -129,8 +127,6 @@ class ChatbotResponse(BaseModel):
     config: ChatbotConfigModel
     dataset_ids: List[str]
     allowed_roles: List[str]
-    allowed_user_ids: List[str]
-    allowed_departments: List[str]
     visibility: str
     owner_id: str
     is_active: bool = True

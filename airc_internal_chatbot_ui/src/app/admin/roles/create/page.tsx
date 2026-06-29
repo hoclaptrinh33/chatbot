@@ -27,15 +27,15 @@ export default function CreateRolePage() {
         try {
             await rbacService.createRole(values, token);
             notification.success({
-                message: 'Tạo thành công',
-                description: `Vai trò "${values.name}" đã được tạo.`,
+                message: 'Tao thanh cong',
+                description: `Role "${values.name}" da duoc tao.`,
             });
             router.push('/admin/roles');
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Tạo thất bại',
-                description: err.response?.data?.detail || 'Có lỗi xảy ra.',
+                message: 'Tao that bai',
+                description: err.response?.data?.detail || 'Co loi xay ra.',
             });
         } finally {
             setLoading(false);
@@ -48,10 +48,10 @@ export default function CreateRolePage() {
                 <div className="mb-6">
                     <Breadcrumb
                         items={[
-                            { title: 'Tổng quan', href: '/dashboard' },
+                            { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Vai trò', href: '/admin/roles' },
-                            { title: 'Tạo mới' },
+                            { title: 'Roles', href: '/admin/roles' },
+                            { title: 'Tao moi' },
                         ]}
                     />
 
@@ -60,7 +60,7 @@ export default function CreateRolePage() {
                             icon={<ArrowLeftOutlined />}
                             onClick={() => router.back()}
                         />
-                        <h1 className="text-2xl font-bold m-0">Tạo vai trò mới</h1>
+                        <h1 className="text-2xl font-bold m-0">Tao Role Moi</h1>
                     </div>
                 </div>
 
@@ -73,24 +73,24 @@ export default function CreateRolePage() {
                         >
                             <Form.Item
                                 name="name"
-                                label="Tên vai trò"
-                                rules={[{ required: true, message: 'Vui lòng nhập tên role' }]}
-                                help="Ví dụ: editor, viewer"
+                                label="Ten Role"
+                                rules={[{ required: true, message: 'Vui long nhap ten role' }]}
+                                help="Vi du: editor, viewer"
                             >
-                                <Input placeholder="Nhập tên role duy nhất" />
+                                <Input placeholder="Nhap ten role unique" />
                             </Form.Item>
 
                             <Form.Item
                                 name="description"
-                                label="Mô tả"
+                                label="Mo ta"
                             >
-                                <TextArea rows={4} placeholder="Mô tả chi tiết Vai trò này" />
+                                <TextArea rows={4} placeholder="Mo ta chi tiet ve role nay" />
                             </Form.Item>
 
                             <Form.Item className="mb-0 text-right">
                                 <Space>
                                     <Button onClick={() => router.back()}>
-                                        Hủy
+                                        Huy
                                     </Button>
                                     <Button
                                         type="primary"
@@ -99,7 +99,7 @@ export default function CreateRolePage() {
                                         icon={<SaveOutlined />}
                                         className="bg-red-700"
                                     >
-                                        Lưu vai trò
+                                        Luu Role
                                     </Button>
                                 </Space>
                             </Form.Item>

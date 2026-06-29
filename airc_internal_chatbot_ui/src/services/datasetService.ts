@@ -82,7 +82,7 @@ const datasetService = {
     /**
      * Share dataset with students
      */
-    shareDataset: async (datasetId: string, payload: { user_ids?: string[]; all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>> => {
+    shareDataset: async (datasetId: string, payload: { all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>> => {
         return await datasetRepository.shareDataset(datasetId, payload);
     },
 

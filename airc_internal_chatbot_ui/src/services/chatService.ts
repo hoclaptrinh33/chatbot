@@ -7,6 +7,8 @@ export interface ChatSession {
     user_id: string;
     created_at: string;
     updated_at: string;
+    parent_id?: string;
+    branch_message_index?: number;
 }
 
 export interface AskRequest {
@@ -27,8 +29,12 @@ class ChatService {
         return response.data;
     }
 
-    async createSession(name: string): Promise<ChatSession> {
-        const response = await coreClient.post<ChatSession>(`${this.baseUrl}/`, { name });
+    async createSession(name: string, parent_id?: string, branch_message_index?: number): Promise<ChatSession> {
+        const response = await coreClient.post<ChatSession>(`${this.baseUrl}/`, {
+            name,
+            parent_id,
+            branch_message_index
+        });
         return response.data;
     }
 

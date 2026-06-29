@@ -4,7 +4,7 @@ import { User, UserRole } from '../types/auth';
 export type { User, UserRole };
 
 // URL API Backend - Auth service routes are at /api/auth/*
-const API_URL = process.env.NEXT_PUBLIC_AUTH_API || '/api/auth';
+const API_URL = process.env.NEXT_PUBLIC_AUTH_API || 'http://localhost:8001/api/auth';
 
 // Interface cho Login Response
 export interface LoginResponse {
@@ -21,7 +21,6 @@ export interface IAuthService {
     login(email: string, password: string): Promise<LoginResponse>;
     getMe(token: string): Promise<User>;
     getPermissions(token: string): Promise<string[]>;
-    getAllUsers(token: string, role?: string, department?: string): Promise<User[]>;
 }
 
 /**
@@ -82,15 +81,11 @@ class AuthService implements IAuthService {
     }
 
     /**
-     * Lay danh sach users theo role (Admin/Employee theo quy dinh backend)
+     * Lay danh sach tat ca users (Admin only)
      */
-    public async getAllUsers(token: string, role?: string, department?: string): Promise<User[]> {
+    public async getAllUsers(token: string): Promise<User[]> {
         const response = await this.api.get<User[]>('/users', {
-            headers: { Authorization: `Bearer ${token}` },
-            params: {
-                ...(role ? { role } : {}),
-                ...(department ? { department } : {}),
-            }
+            headers: { Authorization: `Bearer ${token}` }
         });
         return response.data;
     }
@@ -122,13 +117,11 @@ export interface CreateUserDto {
     email: string;
     password: string;
     full_name: string;
-    department?: string;
     role: UserRole | string;
 }
 
 export interface UpdateUserDto {
     full_name?: string;
-    department?: string;
     role?: UserRole | string;
     is_active?: boolean;
     password?: string;

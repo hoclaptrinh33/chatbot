@@ -31,7 +31,7 @@ export const datasetRepository: IDatasetRepository = {
         await coreClient.delete(`/datasets/${id}`);
     },
 
-    async shareDataset(id: string, payload: { user_ids?: string[]; all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>> {
+    async shareDataset(id: string, payload: { all_students?: boolean; student_ids?: string[] }): Promise<Record<string, unknown>> {
         const response = await coreClient.post(`/datasets/${id}/share`, payload);
         return response.data;
     },

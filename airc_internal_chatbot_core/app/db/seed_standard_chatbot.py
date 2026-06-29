@@ -49,12 +49,12 @@ async def seed():
     # 2. Define Bots
     bots = [
         {
-            "name": "AIRC Intern/Guest Helper",
-            "description": "Trợ lý học tập dành riêng cho thực tập sinh và khách.",
+            "name": "AIRC Student Helper",
+            "description": "Trợ lý học tập dành riêng cho sinh viên.",
             "dataset_ids": valid_dataset_ids,
-            "allowed_roles": ["intern_guest"], # STRICTLY INTERN_GUEST
+            "allowed_roles": ["student"], # STRICTLY STUDENT
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "gemma-4-26b-qat",
                 "temperature": 0.7,
                 "system_prompt": "Bạn là trợ lý ảo hỗ trợ sinh viên AIRC. Hãy giải thích kỹ thuật một cách dễ hiểu, tập trung vào kiến thức cơ bản.",
                 "search_mode": "hybrid", 
@@ -69,12 +69,12 @@ async def seed():
             "updated_at": datetime.utcnow()
         },
         {
-            "name": "AIRC Employee Assistant",
-            "description": "Hỗ trợ nhân viên soạn tài liệu và nghiên cứu nội bộ.",
+            "name": "AIRC Teacher Assistant",
+            "description": "Hỗ trợ giảng viên soạn giáo án và nghiên cứu.",
             "dataset_ids": valid_dataset_ids,
-            "allowed_roles": ["employee"], # STRICTLY EMPLOYEE
+            "allowed_roles": ["teacher"], # STRICTLY TEACHER
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "qwen-3.6-35b",
                 "temperature": 0.5,
                 "system_prompt": "Bạn là trợ lý ảo hỗ trợ giảng viên AIRC. Hãy cung cấp thông tin chuyên sâu, trích dẫn tài liệu chính xác và hỗ trợ soạn thảo nội dung học thuật.",
                 "search_mode": "hybrid", 
@@ -94,7 +94,7 @@ async def seed():
             "dataset_ids": valid_dataset_ids, # Admin sees all
             "allowed_roles": ["admin"], # STRICTLY ADMIN
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "qwen-3.6-35b",
                 "temperature": 0.1,
                 "system_prompt": "Bạn là trợ lý quản trị hệ thống. Trả lời ngắn gọn, súc tích và chính xác.",
                 "search_mode": "hybrid", 

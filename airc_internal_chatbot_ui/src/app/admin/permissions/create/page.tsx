@@ -27,15 +27,15 @@ export default function CreatePermissionPage() {
         try {
             await rbacService.createPermission(values, token);
             notification.success({
-                message: 'Tạo thành công',
-                description: `Quyền hạn "${values.name}" đã được tạo.`,
+                message: 'Tao thanh cong',
+                description: `Permission "${values.name}" da duoc tao.`,
             });
             router.push('/admin/permissions');
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Tạo thất bại',
-                description: err.response?.data?.detail || 'Có lỗi xảy ra.',
+                message: 'Tao that bai',
+                description: err.response?.data?.detail || 'Co loi xay ra.',
             });
         } finally {
             setLoading(false);
@@ -48,10 +48,10 @@ export default function CreatePermissionPage() {
                 <div className="mb-6">
                     <Breadcrumb
                         items={[
-                            { title: 'Tổng quan', href: '/dashboard' },
+                            { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Quyền hạn', href: '/admin/permissions' },
-                            { title: 'Tạo mới' },
+                            { title: 'Permissions', href: '/admin/permissions' },
+                            { title: 'Tao moi' },
                         ]}
                     />
 
@@ -60,7 +60,7 @@ export default function CreatePermissionPage() {
                             icon={<ArrowLeftOutlined />}
                             onClick={() => router.back()}
                         />
-                        <h1 className="text-2xl font-bold m-0">Tạo quyền hạn mới</h1>
+                        <h1 className="text-2xl font-bold m-0">Tao Permission Moi</h1>
                     </div>
                 </div>
 
@@ -77,55 +77,55 @@ export default function CreatePermissionPage() {
                         >
                             <Form.Item
                                 name="name"
-                                label="Tên quyền hạn"
-                                rules={[{ required: true, message: 'Vui lòng nhập tên permission' }]}
-                                help="Ví dụ: dataset:create, chatbot:use"
+                                label="Ten Permission"
+                                rules={[{ required: true, message: 'Vui long nhap ten permission' }]}
+                                help="Vi du: dataset:create, chatbot:use"
                             >
-                                <Input placeholder="Nhập tên permission duy nhất" />
+                                <Input placeholder="Nhap ten permission unique" />
                             </Form.Item>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Form.Item
                                     name="resource"
-                                    label="Tài nguyên"
-                                    rules={[{ required: true, message: 'Vui lòng chọn resource' }]}
+                                    label="Resource (Tai nguyen)"
+                                    rules={[{ required: true, message: 'Vui long chon resource' }]}
                                 >
                                     <Select>
-                                        <Select.Option value="auth">Hệ thống Auth</Select.Option>
-                                        <Select.Option value="rbac">Hệ thống RBAC</Select.Option>
+                                        <Select.Option value="auth">Auth System</Select.Option>
+                                        <Select.Option value="rbac">RBAC System</Select.Option>
                                         <Select.Option value="dataset">Dataset</Select.Option>
                                         <Select.Option value="chatbot">Chatbot</Select.Option>
-                                        <Select.Option value="chat">Hệ thống chat</Select.Option>
-                                        <Select.Option value="system">Lõi hệ thống</Select.Option>
+                                        <Select.Option value="chat">Chat System</Select.Option>
+                                        <Select.Option value="system">System Core</Select.Option>
                                     </Select>
                                 </Form.Item>
 
                                 <Form.Item
                                     name="action"
-                                    label="Hành vi"
-                                    rules={[{ required: true, message: 'Vui lòng chọn action' }]}
+                                    label="Action (Hanh dong)"
+                                    rules={[{ required: true, message: 'Vui long chon action' }]}
                                 >
                                     <Select>
-                                        <Select.Option value="create">Tạo</Select.Option>
-                                        <Select.Option value="read">Đọc</Select.Option>
-                                        <Select.Option value="update">Cập nhật</Select.Option>
-                                        <Select.Option value="delete">Xóa</Select.Option>
-                                        <Select.Option value="manage">Toàn quyền</Select.Option>
+                                        <Select.Option value="create">Create</Select.Option>
+                                        <Select.Option value="read">Read</Select.Option>
+                                        <Select.Option value="update">Update</Select.Option>
+                                        <Select.Option value="delete">Delete</Select.Option>
+                                        <Select.Option value="manage">Manage (Full)</Select.Option>
                                     </Select>
                                 </Form.Item>
                             </div>
 
                             <Form.Item
                                 name="description"
-                                label="Mô tả"
+                                label="Mo ta"
                             >
-                                <TextArea rows={4} placeholder="Mô tả chi tiết về Quyền này" />
+                                <TextArea rows={4} placeholder="Mo ta chi tiet ve permission nay" />
                             </Form.Item>
 
                             <Form.Item className="mb-0 text-right">
                                 <Space>
                                     <Button onClick={() => router.back()}>
-                                        Hủy
+                                        Huy
                                     </Button>
                                     <Button
                                         type="primary"
@@ -134,7 +134,7 @@ export default function CreatePermissionPage() {
                                         icon={<SaveOutlined />}
                                         className="bg-red-700"
                                     >
-                                        Lưu quyền hạn
+                                        Luu Permission
                                     </Button>
                                 </Space>
                             </Form.Item>

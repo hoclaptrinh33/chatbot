@@ -8,8 +8,6 @@ import { Chatbot } from '@/types/chatbot';
 import { Button, Modal, Input, Form, Select, Dropdown, MenuProps, notification } from 'antd';
 import { PlusOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import ShareDatasetModal from '@/components/Datasets/ShareDatasetModal';
-import useAuthStore from '@/stores/authStore';
 
 const DatasetListPage = () => {
     const router = useRouter();
@@ -19,12 +17,9 @@ const DatasetListPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
-    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-    const [shareDatasetId, setShareDatasetId] = useState<string | null>(null);
     const [form] = Form.useForm();
     const [renameForm] = Form.useForm();
     const [search, setSearch] = useState('');
-    const { user } = useAuthStore();
 
     /**
      * Lấy danh sách datasets từ backend
@@ -39,7 +34,7 @@ const DatasetListPage = () => {
             setDatasets(data);
         } catch (error) {
             console.error('Failed to load datasets', error);
-            notification.error({ message: 'Không thể tải dataset' });
+            notification.error({ message: 'Failed to load datasets' });
         } finally {
             setLoading(false);
         }
@@ -75,13 +70,13 @@ const DatasetListPage = () => {
                 name: values.name,
                 chatbot_ids: values.chatbot_ids || []  // Send selected chatbot IDs
             });
-            notification.success({ message: 'Đã tạo dataset thành công' });
+            notification.success({ message: 'Dataset created successfully' });
             setIsCreateModalOpen(false);
             form.resetFields();
             fetchDatasets();
         } catch (error) {
             console.error('Create dataset failed', error);
-            notification.error({ message: 'Không thể tạo dataset' });
+            notification.error({ message: 'Failed to create dataset' });
         }
     };
 
@@ -95,11 +90,11 @@ const DatasetListPage = () => {
             await datasetService.updateDataset(selectedDataset.id, {
                 name: values.name
             });
-            notification.success({ message: 'Đã đổi tên dataset thành công' });
+            notification.success({ message: 'Dataset renamed successfully' });
             setIsRenameModalOpen(false);
             fetchDatasets();
         } catch {
-            notification.error({ message: 'Không thể đổi tên dataset' });
+            notification.error({ message: 'Failed to rename dataset' });
         }
     };
 
@@ -111,18 +106,18 @@ const DatasetListPage = () => {
      */
     const handleDeleteWrapper = async (id: string) => {
         Modal.confirm({
-            title: 'Xóa dataset',
-            content: 'Bạn có chắc muốn xóa dataset này không? Hành động này không thể hoàn tác.',
-            okText: 'Xóa',
+            title: 'Delete Dataset',
+            content: 'Are you sure you want to delete this dataset? This action cannot be undone.',
+            okText: 'Delete',
             okType: 'danger',
-            cancelText: 'Hủy',
+            cancelText: 'Cancel',
             onOk: async () => {
                 try {
                     await datasetService.deleteDataset(id);
-                    notification.success({ message: 'Đã xóa dataset' });
+                    notification.success({ message: 'Dataset deleted' });
                     fetchDatasets();
                 } catch {
-                    notification.error({ message: 'Không thể xóa dataset' });
+                    notification.error({ message: 'Failed to delete dataset' });
                 }
             }
         });
@@ -130,21 +125,9 @@ const DatasetListPage = () => {
 
     const getMenuProps = (dataset: Dataset): MenuProps => ({
         items: [
-            ...(user?.role === 'admin' || user?.role === 'employee'
-                ? [
-                    {
-                        key: 'share',
-                        label: 'Chia sẻ',
-                        onClick: () => {
-                            setShareDatasetId(dataset.id);
-                            setIsShareModalOpen(true);
-                        }
-                    }
-                ]
-                : []),
             {
                 key: 'rename',
-                label: 'Đổi tên',
+                label: 'Rename',
                 onClick: () => {
                     setSelectedDataset(dataset);
                     renameForm.setFieldsValue({ name: dataset.name });
@@ -153,7 +136,7 @@ const DatasetListPage = () => {
             },
             {
                 key: 'delete',
-                label: 'Xóa',
+                label: 'Delete',
                 danger: true,
                 onClick: () => handleDeleteWrapper(dataset.id)
             }
@@ -168,20 +151,20 @@ const DatasetListPage = () => {
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold">Cơ sở tri thức</h1>
+                <h1 className="text-2xl font-bold">Knowledge Base</h1>
                 <Button
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={() => setIsCreateModalOpen(true)}
                     className="bg-[#0b1220] hover:bg-gray-800"
                 >
-                    Tạo dataset
+                    Create Dataset
                 </Button>
             </div>
 
             <div className="mb-6">
                 <Input
-                    placeholder="Tìm dataset..."
+                    placeholder="Search datasets..."
                     prefix={<SearchOutlined />}
                     className="max-w-md"
                     value={search}
@@ -190,7 +173,7 @@ const DatasetListPage = () => {
             </div>
 
             {loading ? (
-                <div>Đang tải...</div>
+                <div>Loading...</div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredDatasets.map((dataset) => (
@@ -223,7 +206,7 @@ const DatasetListPage = () => {
                     ))}
                     {filteredDatasets.length === 0 && !loading && (
                         <div className="col-span-full text-center py-12 text-gray-500">
-                            Không tìm thấy dataset nào. Hãy tạo một dataset để bắt đầu.
+                            No datasets found. Create one to get started.
                         </div>
                     )}
                 </div>
@@ -231,11 +214,11 @@ const DatasetListPage = () => {
 
             {/* Create Dataset Modal - Simple form with Name + Chatbot selection only */}
             <Modal
-                title="Tạo dataset"
+                title="Create Dataset"
                 open={isCreateModalOpen}
                 onCancel={() => setIsCreateModalOpen(false)}
                 onOk={handleCreateWrapper}
-                okText="Tạo"
+                okText="Create"
                 width={500}
             >
                 <Form
@@ -245,26 +228,26 @@ const DatasetListPage = () => {
                 >
                     <Form.Item
                         name="name"
-                        label="Tên dataset"
+                        label="Dataset Name"
                         rules={[
-                            { required: true, message: 'Vui lòng nhập tên dataset' },
-                            { min: 3, message: 'Tên phải có ít nhất 3 ký tự' }
+                            { required: true, message: 'Please enter dataset name' },
+                            { min: 3, message: 'Name must be at least 3 characters' }
                         ]}
                     >
                         <Input
-                            placeholder="Ví dụ: Dataset ngữ pháp tiếng Anh"
+                            placeholder="e.g., English Grammar Dataset"
                             maxLength={200}
                         />
                     </Form.Item>
 
                     <Form.Item
                         name="chatbot_ids"
-                        label="Gán cho chatbot (tùy chọn)"
-                        tooltip="Chọn chatbot sẽ sử dụng dataset này. Cấu hình embedding và chunking được quản lý trong cài đặt chatbot."
+                        label="Assign to Chatbots (Optional)"
+                        tooltip="Select chatbots that will use this dataset. Config (embedding, chunking) is managed in Chatbot settings."
                     >
                         <Select
                             mode="multiple"
-                            placeholder="Chọn chatbot sẽ dùng dataset này"
+                            placeholder="Select chatbots to use this dataset"
                             allowClear
                             showSearch
                             filterOption={(input, option) =>
@@ -279,37 +262,25 @@ const DatasetListPage = () => {
 
                     <div className="text-sm text-gray-500 mt-2 p-3 bg-blue-50 rounded-md">
                         <strong>Lưu ý:</strong> Dataset là nơi chứa các file tài liệu.
-                        Cấu hình embedding và chunking được quản lý tại <strong>Cài đặt chatbot</strong>.
+                        Cấu hình embedding và chunking được quản lý tại <strong>Cài đặt Chatbot</strong>.
                     </div>
                 </Form>
             </Modal>
 
             {/* Rename Modal */}
             <Modal
-                title="Đổi tên dataset"
+                title="Rename Dataset"
                 open={isRenameModalOpen}
                 onCancel={() => setIsRenameModalOpen(false)}
                 onOk={handleRenameWrapper}
-                okText="Lưu"
+                okText="Save"
             >
                 <Form form={renameForm} layout="vertical">
-                    <Form.Item name="name" label="Tên" rules={[{ required: true }]}>
+                    <Form.Item name="name" label="Name" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
                 </Form>
             </Modal>
-
-            {shareDatasetId && (
-                <ShareDatasetModal
-                    datasetId={shareDatasetId}
-                    open={isShareModalOpen}
-                    onClose={() => {
-                        setIsShareModalOpen(false);
-                        setShareDatasetId(null);
-                    }}
-                    onSuccess={fetchDatasets}
-                />
-            )}
         </div>
     );
 };

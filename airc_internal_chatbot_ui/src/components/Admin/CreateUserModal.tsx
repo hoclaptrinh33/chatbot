@@ -27,15 +27,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 email: values.email,
                 password: values.password,
                 full_name: values.full_name,
-                department: values.department?.trim() || undefined,
                 role: values.role
             };
 
             await authService.createUser(payload, token);
 
             notification.success({
-                message: 'Thành công',
-                description: 'Tạo người dùng mới thành công',
+                message: 'Thanh cong',
+                description: 'Tao user moi thanh cong',
             });
 
             form.resetFields();
@@ -43,8 +42,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Lỗi',
-                description: err.response?.data?.detail || 'Không thể tạo người dùng',
+                message: 'Loi',
+                description: err.response?.data?.detail || 'Khong the tao user',
             });
         } finally {
             setLoading(false);
@@ -53,26 +52,26 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
     return (
         <Modal
-            title="Tạo người dùng mới"
+            title="Tao User Moi"
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Tạo mới"
-            cancelText="Hủy"
+            okText="Tao moi"
+            cancelText="Huy"
         >
             <Form
                 form={form}
                 layout="vertical"
                 onFinish={handleSubmit}
-                initialValues={{ role: 'intern_guest' }}
+                initialValues={{ role: 'student' }}
             >
                 <Form.Item
                     name="email"
                     label="Email"
                     rules={[
-                        { required: true, message: 'Vui lòng nhập email' },
-                        { type: 'email', message: 'Email không hợp lệ' }
+                        { required: true, message: 'Vui long nhap email' },
+                        { type: 'email', message: 'Email khong hop le' }
                     ]}
                 >
                     <Input placeholder="user@example.com" />
@@ -80,35 +79,28 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
                 <Form.Item
                     name="full_name"
-                    label="Họ và tên"
-                    rules={[{ required: true, message: 'Vui lòng nhập họ tên' }]}
+                    label="Ho va ten"
+                    rules={[{ required: true, message: 'Vui long nhap ho ten' }]}
                 >
                     <Input placeholder="Nguyen Van A" />
                 </Form.Item>
 
                 <Form.Item
-                    name="department"
-                    label="Phòng ban/Đơn vị"
-                >
-                    <Input placeholder="Ví dụ: Phòng Kỹ thuật" />
-                </Form.Item>
-
-                <Form.Item
                     name="password"
-                    label="Mật khẩu"
-                    rules={[{ required: true, message: 'Vui lòng nhập mật khẩu', min: 6 }]}
+                    label="Mat khau"
+                    rules={[{ required: true, message: 'Vui long nhap mat khau', min: 6 }]}
                 >
                     <Input.Password placeholder="Password123" />
                 </Form.Item>
 
                 <Form.Item
                     name="role"
-                    label="Vai trò khởi tạo"
-                    rules={[{ required: true, message: 'Vui lòng chọn vai trò' }]}
+                    label="Vai tro khoi tao"
+                    rules={[{ required: true, message: 'Vui long chon vai tro' }]}
                 >
                     <Select>
-                        <Select.Option value="intern_guest">Thực tập sinh/Khách</Select.Option>
-                        <Select.Option value="employee">Nhân viên</Select.Option>
+                        <Select.Option value="student">Student</Select.Option>
+                        <Select.Option value="teacher">Teacher</Select.Option>
                         {/* Admin creation disabled via UI to enforce unique admin policy */}
                         {/* <Select.Option value="admin">Admin</Select.Option> */}
                     </Select>

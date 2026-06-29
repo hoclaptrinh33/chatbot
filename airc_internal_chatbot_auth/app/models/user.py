@@ -9,14 +9,14 @@ from enum import Enum
 
 class UserRole(str, Enum):
     """
-    Vai trò người dùng trong hệ thống
+    Vai trò người dùng trong hệ thống giáo dục
     - ADMIN: Quản trị viên - full access
-    - EMPLOYEE: Nhân viên - tạo/quản lý datasets của mình
-    - INTERN_GUEST: Thực tập sinh/khách - chủ yếu dùng chatbot theo quyền được cấp
+    - TEACHER: Giảng viên - tạo/quản lý datasets của mình
+    - STUDENT: Sinh viên - chỉ xem datasets được share
     """
     ADMIN = "admin"
-    EMPLOYEE = "employee"
-    INTERN_GUEST = "intern_guest"
+    TEACHER = "teacher"
+    STUDENT = "student"
 
 
 class Permission(str, Enum):
@@ -78,19 +78,19 @@ ROLE_PERMISSIONS: dict[UserRole, List[Permission]] = {
         Permission.ANALYTICS_VIEW,
         Permission.SYSTEM_MANAGE,
     ],
-    UserRole.EMPLOYEE: [
-        # Employee: Chat + manage own datasets
+    UserRole.TEACHER: [
+        # Teacher: Chat + manage own datasets (via chat interface)
         Permission.DATASETS_VIEW_ALL,  # View all to see what's available
         Permission.DATASETS_CREATE,    # Upload files (in chat interface)
         Permission.DATASETS_UPDATE_OWN, # Edit own datasets
         Permission.DATASETS_DELETE_OWN, # Delete own datasets
-        Permission.DATASETS_SHARE,      # Share with intern/guest users
+        Permission.DATASETS_SHARE,      # Share with students
         Permission.CHATBOTS_USE,        # Use chatbot
         Permission.CHAT_USE,            # Primary function: Chat
         Permission.CHAT_VIEW_OWN,       # View own chat history
     ],
-    UserRole.INTERN_GUEST: [
-        # Intern/Guest: Chat only with shared datasets
+    UserRole.STUDENT: [
+        # Student: Chat only with shared datasets
         Permission.DATASETS_VIEW_SHARED, # Only see shared datasets
         Permission.CHATBOTS_USE,         # Use chatbot
         Permission.CHAT_USE,             # Primary function: Chat
@@ -103,8 +103,7 @@ class UserBase(BaseModel):
     """Base user schema"""
     email: EmailStr
     full_name: str
-    department: Optional[str] = None
-    role: UserRole = UserRole.INTERN_GUEST
+    role: UserRole = UserRole.STUDENT
     is_active: bool = True
 
 
@@ -113,14 +112,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     full_name: str
-    department: Optional[str] = None
-    role: UserRole = UserRole.INTERN_GUEST
+    role: UserRole = UserRole.STUDENT
 
 
 class UserUpdate(BaseModel):
     """Schema cho update user"""
     full_name: Optional[str] = None
-    department: Optional[str] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None

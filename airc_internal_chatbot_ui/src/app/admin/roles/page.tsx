@@ -35,8 +35,8 @@ export default function RolesPage() {
             setRoles(data);
         } catch {
             notification.error({
-                message: 'Lỗi tải dữ liệu',
-                description: 'Không thể lấy danh sách roles.',
+                message: 'Loi tai du lieu',
+                description: 'Khong the lay danh sach roles.',
             });
         } finally {
             setLoading(false);
@@ -52,15 +52,15 @@ export default function RolesPage() {
         try {
             await rbacService.deleteRole(id, token);
             notification.success({
-                message: 'Xóa thành công',
-                description: 'Vai trò đã được xóa.',
+                message: 'Xoa thanh cong',
+                description: 'Role da duoc xoa.',
             });
             fetchRoles();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Xóa thất bại',
-                description: err.response?.data?.detail || 'Có lỗi xảy ra.',
+                message: 'Xoa that bai',
+                description: err.response?.data?.detail || 'Co loi xay ra.',
             });
         }
     };
@@ -81,16 +81,16 @@ export default function RolesPage() {
                 <div className="mb-6">
                     <Breadcrumb
                         items={[
-                            { title: 'Tổng quan', href: '/dashboard' },
+                            { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Vai trò' },
+                            { title: 'Roles' },
                         ]}
                     />
 
                     <div className="flex justify-between items-center mt-4">
                         <div className="flex items-center gap-3">
                             <SafetyCertificateOutlined className="text-2xl text-red-700" />
-                            <h1 className="text-2xl font-bold m-0">Quản lý vai trò</h1>
+                            <h1 className="text-2xl font-bold m-0">Quan ly Roles</h1>
                         </div>
 
                         <Button
@@ -99,7 +99,7 @@ export default function RolesPage() {
                             onClick={() => setIsCreateModalVisible(true)}
                             className="bg-red-700 hover:bg-red-800"
                         >
-                            Tạo vai trò
+                            Tao Role
                         </Button>
                     </div>
                 </div>

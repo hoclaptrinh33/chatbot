@@ -1,6 +1,6 @@
 """
 Chatbot Repository - Data access layer cho chatbots
-Handles CRUD operations và access filtering theo user/phòng ban
+Handles CRUD operations và RBAC filtering
 """
 from app.repositories.base_repository import BaseRepository
 from app.models.database import Collections
@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any
 
 
 class ChatbotRepository(BaseRepository):
-    """Repository cho Chatbot operations và access policy theo user/phòng ban."""
+    """Repository cho Chatbot operations với RBAC"""
     
     def __init__(self, db):
         super().__init__(db, Collections.CHATBOTS)
@@ -22,8 +22,6 @@ class ChatbotRepository(BaseRepository):
         config: Dict[str, Any],
         dataset_ids: List[str],
         allowed_roles: List[str],
-        allowed_user_ids: List[str],
-        allowed_departments: List[str],
         visibility: str,
         owner_id: str
     ) -> dict:
@@ -35,7 +33,7 @@ class ChatbotRepository(BaseRepository):
             description: Mô tả
             config: Cấu hình {model, temperature, system_prompt, max_tokens}
             dataset_ids: Danh sách dataset IDs
-            allowed_roles: Legacy roles field để tương thích dữ liệu cũ
+            allowed_roles: Roles được phép sử dụng
             visibility: "public", "private"
             owner_id: User ID của người tạo (Admin)
         """
@@ -46,8 +44,6 @@ class ChatbotRepository(BaseRepository):
             "config": config,
             "dataset_ids": dataset_ids,
             "allowed_roles": allowed_roles,
-            "allowed_user_ids": allowed_user_ids,
-            "allowed_departments": allowed_departments,
             "visibility": visibility,
             "owner_id": owner_id,
             "is_active": True,
@@ -75,32 +71,22 @@ class ChatbotRepository(BaseRepository):
         )
         return self.serialize_docs(docs)
     
-    async def get_available_for_user(
+    async def get_available_for_role(
         self,
-        user_id: str,
-        department: Optional[str] = None
+        role: str
     ) -> List[dict]:
         """
-        Lấy chatbots available cho user cụ thể.
-
-        Access policy:
-        - allowed_user_ids chứa user_id
-        - HOẶC allowed_departments chứa department
-        - Nếu cả 2 rỗng thì chatbot private (non-admin không truy cập)
+        Lấy chatbots available cho role (RBAC filtering)
+        
+        Logic:
+        - allowed_roles phải chứa role của user
+        - is_active = True
         """
-        access_conditions: List[Dict[str, Any]] = [
-            {"allowed_user_ids": user_id}
-        ]
-
-        normalized_department = (department or "").strip()
-        if normalized_department:
-            access_conditions.append({"allowed_departments": normalized_department})
-
         query = {
             "is_active": True,
-            "$or": access_conditions,
+            "allowed_roles": role  # MongoDB tự kiểm tra role trong array
         }
-
+        
         docs = await self.find_many(query, sort=[("created_at", -1)])
         return self.serialize_docs(docs)
     
@@ -149,3 +135,40 @@ class ChatbotRepository(BaseRepository):
     async def set_active(self, chatbot_id: str, is_active: bool) -> bool:
         """Bật/tắt chatbot"""
         return await self.update_chatbot(chatbot_id, {"is_active": is_active})
+
+    async def get_roles_with_chatbot_assigned(self, exclude_chatbot_id: Optional[str] = None) -> List[str]:
+        """
+        Lấy danh sách roles đã được gán chatbot
+        
+        Logic: Mỗi role (student, teacher) chỉ được gán 1 chatbot.
+        Admin là ngoại lệ - có thể dùng nhiều chatbot.
+        
+        Args:
+            exclude_chatbot_id: Loại trừ chatbot này (dùng khi update)
+            
+        Returns:
+            List roles đã có chatbot (trừ admin)
+        """
+        query = {
+            "allowed_roles": {"$exists": True, "$ne": []},
+            "is_active": True
+        }
+        
+        if exclude_chatbot_id:
+            oid = self.to_object_id(exclude_chatbot_id)
+            if oid:
+                query["_id"] = {"$ne": oid}
+        
+        docs = await self.find_many(query)
+        
+        # Collect all roles from all chatbots (exclude admin)
+        roles = set()
+        for doc in docs:
+            allowed_roles = doc.get("allowed_roles", [])
+            if allowed_roles:
+                # Admin có thể dùng nhiều chatbot nên không count
+                for role in allowed_roles:
+                    if role.lower() != "admin":
+                        roles.add(role.lower())
+        
+        return list(roles)

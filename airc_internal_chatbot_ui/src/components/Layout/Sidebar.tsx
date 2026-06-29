@@ -36,18 +36,18 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
 
     // Lay role tu AuthStore (DYNAMIC)
     const { user } = useAuthStore();
-    const userRole = user?.role?.toLowerCase() || 'intern_guest';
+    const userRole = user?.role?.toLowerCase() || 'student';
 
     // Menu items configuration
     const getMenuItems = (role: string) => {
         const items: Array<{ key: string; icon: React.ReactNode; label: string }> = [];
 
-        // Dashboard chỉ cho admin và employee
-        if (role === 'admin' || role === 'employee') {
+        // Dashboard chỉ cho admin và teacher
+        if (role === 'admin' || role === 'teacher') {
             items.push({
                 key: '/dashboard',
                 icon: <DashboardOutlined />,
-                label: 'Tổng quan',
+                label: 'Bảng điều khiển',
             });
         }
 
@@ -72,23 +72,23 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                 {
                     key: '/admin/chatbots',
                     icon: <RobotOutlined />,
-                    label: 'Chatbot',
+                    label: 'Chatbots',
                 },
                 {
                     key: '/dashboard/datasets',
                     icon: <DatabaseOutlined />,
-                    label: 'Dataset',
+                    label: 'Bộ dữ liệu',
                 }
             );
         }
 
-        // Employee: Tạo dataset, upload tài liệu, chat với bot
-        if (role === 'employee') {
+        // Teacher: Tạo dataset, upload tài liệu, chat với bot
+        if (role === 'teacher') {
             items.push(
                 {
                     key: '/dashboard/datasets',
                     icon: <DatabaseOutlined />,
-                    label: 'Dataset',
+                    label: 'Bộ dữ liệu',
                 }
             );
         }
@@ -115,11 +115,7 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                 boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
                 zIndex: 1001,
                 display: 'flex',
-                flexDirection: 'column',
-                height: '100vh',
-                overflow: 'hidden',
-                position: 'sticky',
-                top: 0,
+                flexDirection: 'column'
             }}
         >
             <AIRCLogo collapsed={collapsed} />

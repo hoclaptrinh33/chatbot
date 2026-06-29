@@ -45,16 +45,16 @@ const EditPermissionModal: React.FC<EditPermissionModalProps> = ({
             await rbacService.updatePermission(id, payload, token);
 
             notification.success({
-                message: 'Thành công',
-                description: 'Cập nhật quyền hạn thành công',
+                message: 'Thanh cong',
+                description: 'Cap nhat permission thanh cong',
             });
 
             onSuccess();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Lỗi',
-                description: err.response?.data?.detail || 'Không thể cập nhật quyền hạn',
+                message: 'Loi',
+                description: err.response?.data?.detail || 'Khong the update permission',
             });
         } finally {
             setLoading(false);
@@ -63,13 +63,13 @@ const EditPermissionModal: React.FC<EditPermissionModalProps> = ({
 
     return (
         <Modal
-            title={`Sửa quyền hạn: ${permission?.code}`}
+            title={`Sua Permission: ${permission?.code}`}
             open={visible}
             onCancel={onCancel}
             onOk={form.submit}
             confirmLoading={loading}
-            okText="Lưu thay đổi"
-            cancelText="Hủy"
+            okText="Luu thay doi"
+            cancelText="Huy"
         >
             <Form
                 form={form}
@@ -78,15 +78,15 @@ const EditPermissionModal: React.FC<EditPermissionModalProps> = ({
             >
                 <Form.Item
                     name="name"
-                    label="Tên quyền hạn"
-                    rules={[{ required: true, message: 'Vui lòng nhập tên quyền hạn' }]}
+                    label="Ten Permission"
+                    rules={[{ required: true, message: 'Vui long nhap ten permission' }]}
                 >
                     <Input />
                 </Form.Item>
 
                 <Form.Item
                     name="description"
-                    label="Mô tả"
+                    label="Mo ta"
                 >
                     <Input.TextArea rows={3} />
                 </Form.Item>

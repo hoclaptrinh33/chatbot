@@ -23,8 +23,8 @@ export default function ChatbotsPage() {
         } catch (error) {
             console.error(error);
             notification.error({
-                message: 'Lỗi tải chatbot',
-                description: 'Không thể tải danh sách chatbot.',
+                message: 'Error fetching chatbots',
+                description: 'Could not load chatbot list.',
             });
         } finally {
             setLoading(false);
@@ -46,13 +46,13 @@ export default function ChatbotsPage() {
     const handleDelete = async (chatbot: Chatbot) => {
         try {
             await chatbotService.deleteChatbot(chatbot.id);
-            notification.success({ message: 'Đã xóa chatbot thành công' });
+            notification.success({ message: 'Chatbot deleted successfully' });
             fetchChatbots();
         } catch (error) {
             console.error(error);
             notification.error({
-                message: 'Lỗi xóa chatbot',
-                description: 'Không thể xóa chatbot.',
+                message: 'Error deleting chatbot',
+                description: 'Could not delete chatbot.',
             });
         }
     };
@@ -63,16 +63,16 @@ export default function ChatbotsPage() {
                 <div className="mb-6">
                     <Breadcrumb
                         items={[
-                            { title: 'Tổng quan', href: '/dashboard' },
+                            { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Quản lý chatbot' },
+                            { title: 'Chatbots' },
                         ]}
                     />
 
                     <div className="flex justify-between items-center mt-4">
                         <div className="flex items-center gap-3">
                             <RobotOutlined className="text-2xl text-blue-600" />
-                            <h1 className="text-2xl font-bold m-0">Quản lý chatbot</h1>
+                            <h1 className="text-2xl font-bold m-0">Chatbot Management</h1>
                         </div>
                         <Button
                             type="primary"
@@ -80,7 +80,7 @@ export default function ChatbotsPage() {
                             onClick={handleCreate}
                             className="bg-blue-600 hover:bg-blue-700"
                         >
-                            Tạo chatbot
+                            Create Chatbot
                         </Button>
                     </div>
                 </div>
