@@ -67,6 +67,12 @@ app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"]
 app.include_router(chatbots.router, prefix="/api/v1/chatbots", tags=["Chatbots"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
 
+# Mount static folder cho uploads (phục vụ ảnh bóc tách từ tài liệu)
+import os
+from fastapi.staticfiles import StaticFiles
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
