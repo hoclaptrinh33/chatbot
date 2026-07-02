@@ -43,21 +43,29 @@ class ProcessingService:
             logger.info("Khởi tạo Docling DocumentConverter...")
             try:
                 from docling.document_converter import DocumentConverter, PdfFormatOption
-                from docling.datamodel.pipeline_options import PdfPipelineOptions
+                from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
                 from docling.datamodel.base_models import InputFormat
                 
-                # Cấu hình pipeline options để bóc tách hình ảnh
+                # Cấu hình pipeline options để bóc tách hình ảnh và cấu trúc bảng
                 pipeline_options = PdfPipelineOptions()
                 pipeline_options.images_scale = 1.0  # Tối ưu hóa chất lượng ảnh và dung lượng ổ đĩa
                 pipeline_options.generate_picture_images = True  # Bật trích xuất hình vẽ/ảnh
                 pipeline_options.generate_page_images = False    # Tắt xuất toàn bộ trang dưới dạng ảnh (không cần thiết)
+                
+                # Kích hoạt nhận diện cấu trúc bảng nâng cao
+                pipeline_options.do_ocr = True
+                pipeline_options.do_table_structure = True
+                pipeline_options.table_structure_options.do_cell_matching = True
+                
+                # Sử dụng EasyOCR song ngữ Tiếng Việt & Tiếng Anh để bóc tách PDF Scan
+                pipeline_options.ocr_options = EasyOcrOptions(lang=["vi", "en"])
                 
                 self._doc_converter = DocumentConverter(
                     format_options={
                         InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
                     }
                 )
-                logger.info("Khởi tạo Docling DocumentConverter thành công với cấu hình trích xuất hình ảnh.")
+                logger.info("Khởi tạo Docling DocumentConverter thành công với cấu hình EasyOCR Tiếng Việt & cấu trúc bảng.")
             except Exception as e:
                 logger.exception("Không thể khởi tạo Docling DocumentConverter")
                 raise e
@@ -107,56 +115,132 @@ class ProcessingService:
             if not text:
                 raise ValueError("Không trích xuất được nội dung text từ file")
             
-            # 5. Chunking (Chia nhỏ văn bản)
+            # 5. Sinh Document Summary (Tóm tắt tài liệu) phục vụ Rich Context
+            document_summary = ""
+            try:
+                # Trích xuất một phần nội dung nếu quá dài để tránh tràn token của LLM
+                summary_input = text
+                if len(text) > 8000:
+                    summary_input = text[:4000] + "\n...[PHẦN GIỮA ĐÃ ĐƯỢC LƯỢC BỎ]...\n" + text[-4000:]
+                
+                prompt = (
+                    "Hãy tóm tắt ngắn gọn nội dung chính của tài liệu sau bằng Tiếng Việt trong vòng 100-150 từ. "
+                    "Hãy tập trung vào chủ đề chính và các thông tin quan trọng nhất để làm ngữ cảnh tìm kiếm. "
+                    "Chỉ trả về nội dung tóm tắt thô, không thêm bất cứ lời dẫn nào như 'Dưới đây là tóm tắt' hoặc 'Tóm tắt:'.\n\n"
+                    f"Nội dung tài liệu:\n{summary_input}"
+                )
+                from app.services.llm_service import llm_service
+                logger.info(f"[PROCESS] Đang sinh Document Summary cho file {file_doc['name']}...")
+                # Thiết lập timeout ngắn tránh treo hàng đợi
+                document_summary = await llm_service.generate(
+                    prompt=prompt,
+                    temperature=0.3,
+                    max_tokens=256
+                )
+                if any(err in document_summary for err in ["Lỗi Server AI", "Không thể kết nối", "Thời gian yêu cầu"]):
+                    logger.warning(f"[PROCESS] Không sinh được summary do lỗi LLM: {document_summary}")
+                    document_summary = ""
+                else:
+                    document_summary = document_summary.strip()
+                    logger.info(f"[PROCESS] Đã sinh Document Summary thành công: {document_summary[:100]}...")
+            except Exception as sum_err:
+                logger.warning(f"[PROCESS] Bỏ qua sinh tóm tắt do gặp lỗi: {sum_err}")
+                document_summary = ""
+
+            # Phân loại tài liệu động dựa trên tên file
+            filename_lower = file_doc["name"].lower()
+            file_type = "general"
+            if any(k in filename_lower for k in ["quy che", "quy chế", "dieu khoan", "điều khoản", "luat", "luật", "nghi dinh", "nghị định", "thong tu", "thông tư", "quy dinh", "quy định", "chinh sach", "chính sách"]):
+                file_type = "legal"
+            elif any(k in filename_lower for k in ["bao cao", "báo cáo", "tai chinh", "tài chính", "doanh thu", "ket qua", "kết quả"]):
+                file_type = "financial"
+            elif any(k in filename_lower for k in ["faq", "hoi dap", "hỏi đáp", "q&a", "qa"]):
+                file_type = "faq"
+
+            # 6. Chunking (Chia nhỏ văn bản nâng cấp)
             from app.services.chunking_service import chunking_service
-            
-            # Modern chunking: 1024 chars với overlap 100 chars, preserve sentence boundaries
-            chunks_dicts = chunking_service.chunk_text(
-                text, 
-                chunk_size=1024,      # Tối ưu hóa kích thước character-based cho tiếng Việt
-                chunk_overlap=100,    # Overlap để giữ ngữ cảnh liền mạch
-                preserve_sentences=True
+            chunks_data = chunking_service.chunk_document_advanced(
+                text=text,
+                filename=file_doc["name"],
+                document_summary=document_summary,
+                file_type=file_type
             )
             
-            # Extract text từ chunk dictionaries
-            chunks_text = [chunk["text"] for chunk in chunks_dicts]
+            logger.info(f"[PROCESS] Đã chia thành {len(chunks_data)} chunks (bao gồm cả parent & child) với loại {file_type}")
             
-            logger.info(f"[PROCESS] Đã chia thành {len(chunks_text)} chunks")
+            # Phân tách Parent và Child chunks
+            parent_indices_with_children = set(
+                c["parent_chunk_temp_idx"] for c in chunks_data if "parent_chunk_temp_idx" in c
+            )
+            
+            chunks_to_embed = [
+                c for c in chunks_data 
+                if not (c["is_parent"] and c["chunk_index"] in parent_indices_with_children)
+            ]
             
             # Cập nhật trạng thái -> EMBEDDING
             await self.dataset_file_repo.update_status(dataset_file_id, DatasetFileStatus.EMBEDDING)
             
-            # 6. Embedding (Tạo vectors)
-            embeddings = embedding_service.embed_texts(chunks_text)
+            # 7. Embedding (Tạo vectors cho child/độc lập chunks)
+            enriched_texts_to_embed = [c["context_enriched_text"] for c in chunks_to_embed]
+            embeddings = embedding_service.embed_texts(enriched_texts_to_embed)
             
-            # 7. Lưu trữ Chunks & Vectors
-            # Lưu chunks vào MongoDB
-            chunk_ids = await self.chunk_repo.create_chunks(
+            # 8. Lưu trữ Chunks & Vectors vào DB
+            # Bước A: Lưu Parent Chunks trước để lấy ID thật từ MongoDB
+            parent_chunks = [
+                c for c in chunks_data 
+                if c["is_parent"] and c["chunk_index"] in parent_indices_with_children
+            ]
+            
+            temp_idx_to_real_id = {}
+            if parent_chunks:
+                parent_ids = await self.chunk_repo.create_chunks(
+                    dataset_id=dataset_id,
+                    dataset_file_id=dataset_file_id,
+                    file_id=df["file_id"],
+                    chunks_data=parent_chunks
+                )
+                temp_idx_to_real_id = {
+                    parent_chunks[i]["chunk_index"]: parent_ids[i]
+                    for i in range(len(parent_chunks))
+                }
+                
+            # Bước B: Gán parent_chunk_id thật cho các Child chunks
+            for c in chunks_to_embed:
+                temp_parent_idx = c.get("parent_chunk_temp_idx")
+                if temp_parent_idx is not None and temp_parent_idx in temp_idx_to_real_id:
+                    c["parent_chunk_id"] = temp_idx_to_real_id[temp_parent_idx]
+                else:
+                    c["parent_chunk_id"] = None
+            
+            # Bước C: Lưu các chunks_to_embed (child & độc lập) vào MongoDB
+            embeddable_chunk_ids = await self.chunk_repo.create_chunks(
                 dataset_id=dataset_id,
                 dataset_file_id=dataset_file_id,
                 file_id=df["file_id"],
-                texts=chunks_text,
-                vectors=embeddings.tolist()
+                chunks_data=chunks_to_embed
             )
             
             # Map chunk_ids với payloads tương ứng cho Qdrant
             payloads = [
                 {
-                    "chunk_id": str(cid),
+                    "chunk_id": str(embeddable_chunk_ids[i]),
                     "dataset_file_id": dataset_file_id,
-                    "dataset_id": dataset_id
+                    "dataset_id": dataset_id,
+                    "is_child": not chunks_to_embed[i]["is_parent"],
+                    "parent_chunk_id": chunks_to_embed[i]["parent_chunk_id"]
                 }
-                for cid in chunk_ids
+                for i in range(len(chunks_to_embed))
             ]
             
             # Index vectors vào Qdrant
             vector_service.add_vectors(dataset_id, embeddings, payloads)
             
-            # 8. Hoàn tất -> Cập nhật trạng thái DONE và enabled = True
+            # 9. Hoàn tất -> Cập nhật trạng thái DONE và enabled = True
             await self.dataset_file_repo.update_status(
                 dataset_file_id, 
                 DatasetFileStatus.DONE,
-                chunk_count=len(chunks_text)
+                chunk_count=len(chunks_to_embed)
             )
             
             await self.dataset_file_repo.set_enabled(dataset_file_id, True)

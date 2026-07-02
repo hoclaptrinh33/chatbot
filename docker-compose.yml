@@ -94,8 +94,14 @@ services:
       - JWT_SECRET_KEY=AIRC_SUPER_SECRET_KEY_2024
       - JWT_ALGORITHM=HS256
       - DEBUG=True
-      - CUDA_VISIBLE_DEVICES=-1
       - HF_HOME=/app/models_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - core_uploads:/app/uploads
       - core_faiss:/app/faiss_indexes
@@ -133,8 +139,14 @@ services:
       - MONGODB_DB_NAME=airc_chatbot
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
-      - CUDA_VISIBLE_DEVICES=-1
       - HF_HOME=/app/models_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - core_uploads:/app/uploads
       - core_faiss:/app/faiss_indexes

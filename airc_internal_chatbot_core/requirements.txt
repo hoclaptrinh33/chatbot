@@ -30,5 +30,6 @@ pypdf>=3.17.1
 python-docx>=1.1.0
 langchain-text-splitters>=0.0.1
 docling>=2.0.0
+easyocr
 onnxruntime>=1.17.0
 

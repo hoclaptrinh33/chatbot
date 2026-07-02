@@ -240,6 +240,32 @@ class ChatService:
             self._apply_reranking(question, grouped_results, reranker_model=rag_reranker)
         debug_metrics["rerank_time_ms"] = round((time.time() - start_rerank) * 1000, 2)
 
+        # 4.3 Parent-Child Retrieval: Thay thế child chunks bằng parent chunks để gửi làm context cho LLM
+        parent_chunk_ids = set()
+        for g in grouped_results:
+            for r in g.get("results", []):
+                pid = r.get("parent_chunk_id")
+                if pid:
+                    parent_chunk_ids.add(pid)
+                    
+        if parent_chunk_ids:
+            try:
+                logger.info(f"[CHAT] Đang lấy nội dung cho {len(parent_chunk_ids)} Parent chunks từ MongoDB...")
+                parent_docs = await self.chunk_repo.get_parent_chunks_by_ids(list(parent_chunk_ids))
+                parent_map = {str(doc["id"]): doc for doc in parent_docs}
+                
+                replaced_count = 0
+                for g in grouped_results:
+                    for r in g.get("results", []):
+                        pid = r.get("parent_chunk_id")
+                        if pid and pid in parent_map:
+                            r["child_text"] = r["text"]  # Lưu lại child text thô
+                            r["text"] = parent_map[pid].get("text")  # Ghi đè bằng parent text
+                            replaced_count += 1
+                logger.info(f"[CHAT] Đã thay thế thành công {replaced_count} child chunks bằng parent chunks.")
+            except Exception as pe_err:
+                logger.error(f"[CHAT] Lỗi khi mapping parent chunks: {str(pe_err)}")
+
         # 4.5 ✅ NO CONTEXT BEHAVIOR - Xử lý khi không tìm thấy tài liệu
         # Đếm số chunks thực sự tìm được và calculate metrics
         all_chunks = []
@@ -461,6 +487,7 @@ class ChatService:
                     "file_name": file_name,  # ✨ NEW: Tên file cụ thể
                     "dataset_file_id": chunk_data.get("dataset_file_id"),
                     "chunk_index": chunk_data.get("chunk_index"),
+                    "parent_chunk_id": chunk_data.get("parent_chunk_id"),  # Lưu parent_chunk_id phục vụ Retrieval ngược
                     "cite": cite_ref,
                     "origin": origin
                 })

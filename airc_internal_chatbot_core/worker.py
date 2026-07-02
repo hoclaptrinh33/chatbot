@@ -11,8 +11,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Không preload models ở tiến trình cha để tránh lỗi "Cannot re-initialize CUDA in forked subprocess" khi dùng GPU.
+# Thư viện EmbeddingService và EasyOCR sẽ tự động Lazy Load an toàn bên trong tiến trình con được fork.
 from app.services.embedding_service import embedding_service
-embedding_service.preload_models()
+# embedding_service.preload_models()
 
 if __name__ == "__main__":
     logger.info("Starting RAG Worker...")

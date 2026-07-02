@@ -40,38 +40,135 @@ class ChunkRepository(BaseRepository):
         dataset_id: str,
         dataset_file_id: str,
         file_id: str,
-        texts: List[str],
-        vectors: List[List[float]] = None
+        texts: List[str] = None,
+        vectors: List[List[float]] = None,
+        chunks_data: List[dict] = None
     ) -> List[str]:
-        """Tạo nhiều chunks (batch insert)"""
+        """
+        Tạo nhiều chunks (batch insert).
+        Hỗ trợ cấu trúc Parent-Child và Rich Context.
+        """
         docs = []
-        for i, text in enumerate(texts):
-            doc = {
-                "dataset_id": dataset_id,
-                "dataset_file_id": dataset_file_id,
-                "file_id": file_id,
-                "chunk_index": i,
-                "text": text,
-                # vector_id is index in FAISS, usually sequential or managed by vector_service
-                # For simplicity, we assume vector_service returns IDs or we query them later.
-                # But ProcessingService is passing embeddings.tolist() as vectors param?
-                # ProcessingService logic: vector_service.add_vectors(dataset_id, embeddings)
-                # We need to coordinate IDs. 
-                # Let's assume vector_id matches chunk_index if sequential? 
-                # Usually FAISS returns IDs.
-                # Re-reading ProcessingService: It does vector_service.add_vectors AFTER repo call.
-                # So here vector_id is unknown yet?
-                "vector_id": None 
-            }
-            # Add vector if provided (though FAISS/Qdrant manages vectors usually)
-            # Keeping DB structure simple.
-            docs.append(doc)
+        if chunks_data:
+            for chunk in chunks_data:
+                doc = {
+                    "dataset_id": dataset_id,
+                    "dataset_file_id": dataset_file_id,
+                    "file_id": file_id,
+                    "chunk_index": chunk.get("chunk_index"),
+                    "text": chunk.get("text"),
+                    "context_enriched_text": chunk.get("context_enriched_text"),
+                    "heading_path": chunk.get("heading_path", []),
+                    "is_parent": chunk.get("is_parent", False),
+                    "parent_chunk_id": chunk.get("parent_chunk_id"),
+                    "vector_id": chunk.get("vector_id")
+                }
+                docs.append(doc)
+        else:
+            # Fallback cơ chế cũ chỉ truyền texts
+            for i, text in enumerate(texts or []):
+                doc = {
+                    "dataset_id": dataset_id,
+                    "dataset_file_id": dataset_file_id,
+                    "file_id": file_id,
+                    "chunk_index": i,
+                    "text": text,
+                    "context_enriched_text": text,
+                    "heading_path": [],
+                    "is_parent": False,
+                    "parent_chunk_id": None,
+                    "vector_id": None 
+                }
+                docs.append(doc)
             
         if not docs:
             return []
             
         result = await self.collection.insert_many(docs)
         return [str(uid) for uid in result.inserted_ids]
+
+    async def get_parent_chunks_by_ids(self, parent_ids: List[str]) -> List[dict]:
+        """Lấy danh sách các chunk cha theo danh sách ID"""
+        oids = [self.to_object_id(pid) for pid in parent_ids if pid]
+        oids = [oid for oid in oids if oid]
+        if not oids:
+            return []
+        
+        docs = await self.find_many({"_id": {"$in": oids}})
+        return self.serialize_docs(docs)
+
+    async def create_chunks_advanced(
+        self,
+        dataset_id: str,
+        dataset_file_id: str,
+        file_id: str,
+        chunks: List[dict]
+    ) -> List[dict]:
+        """
+        Tạo nhiều chunks với cấu trúc nâng cao (Parent-Child, Heading Path, Context Enriched)
+        """
+        if not chunks:
+            return []
+            
+        # 1. Tách và chèn các Parent Chunks trước để lấy ObjectId
+        parent_chunks = [c for c in chunks if c.get("is_parent") is True]
+        parent_map = {} # map chunk_index -> Mongo ID string
+        
+        for p_chunk in parent_chunks:
+            doc = {
+                "dataset_id": dataset_id,
+                "dataset_file_id": dataset_file_id,
+                "file_id": file_id,
+                "chunk_index": p_chunk["chunk_index"],
+                "text": p_chunk["text"],
+                "context_enriched_text": p_chunk.get("context_enriched_text", p_chunk["text"]),
+                "heading_path": p_chunk.get("heading_path", []),
+                "is_parent": True,
+                "parent_chunk_id": None,
+                "vector_id": None
+            }
+            inserted_id = await self.insert_one(doc)
+            p_chunk["id"] = inserted_id
+            parent_map[p_chunk["chunk_index"]] = inserted_id
+            
+        # 2. Chuẩn bị chèn các Child Chunks và các Chunks độc lập
+        other_chunks = [c for c in chunks if not c.get("is_parent")]
+        docs_to_insert = []
+        
+        for c_chunk in other_chunks:
+            p_idx = c_chunk.get("parent_chunk_index")
+            p_id = parent_map.get(p_idx) if p_idx is not None else None
+            
+            doc = {
+                "dataset_id": dataset_id,
+                "dataset_file_id": dataset_file_id,
+                "file_id": file_id,
+                "chunk_index": c_chunk["chunk_index"],
+                "text": c_chunk["text"],
+                "context_enriched_text": c_chunk.get("context_enriched_text", c_chunk["text"]),
+                "heading_path": c_chunk.get("heading_path", []),
+                "is_parent": False,
+                "parent_chunk_id": p_id,
+                "vector_id": None
+            }
+            docs_to_insert.append((c_chunk, doc))
+            
+        if docs_to_insert:
+            # Thực hiện chèn nhiều tài liệu cùng lúc
+            insert_payloads = [doc for _, doc in docs_to_insert]
+            result = await self.collection.insert_many(insert_payloads)
+            
+            # Map ngược lại ObjectId cho từng chunk
+            for i, inserted_id in enumerate(result.inserted_ids):
+                chunk_obj, _ = docs_to_insert[i]
+                chunk_obj["id"] = str(inserted_id)
+                # Cập nhật trường parent_chunk_id trong chunk_obj để trả về
+                p_idx = chunk_obj.get("parent_chunk_index")
+                chunk_obj["parent_chunk_id"] = parent_map.get(p_idx) if p_idx is not None else None
+                
+        # Trả về danh sách chunks ban đầu đã được gán id
+        return chunks
+
 
     async def search_by_text(
         self, 
