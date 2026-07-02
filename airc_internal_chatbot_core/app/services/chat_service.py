@@ -83,9 +83,15 @@ class ChatService:
         start_total = time.time()
         
         # 0. Handle Session & History
+        conversation_summary = None
         if session_id and self.session_repo:
             # Save User Message first
             await self.session_repo.add_message(session_id, "user", question)
+            
+            # Load session summary
+            session_doc = await self.session_repo.get_session(session_id)
+            if session_doc:
+                conversation_summary = session_doc.get("conversation_summary")
             
             # If history not provided, load from session
             if not history:
@@ -135,6 +141,13 @@ class ChatService:
         rag_system_prompt = None
         rag_temperature = 0.7
         rag_max_tokens = 2048
+        
+        # Default history management and query reformulation parameters
+        enable_query_reformulation = True
+        enable_history_compression = True
+        history_limit = 3
+        buffer_limit = 2
+        compression_model = "gemini-1.5-flash"
         
         if chatbot_id and self.chatbot_repo:
             chatbot = await self.chatbot_repo.get_by_id(chatbot_id)
@@ -197,11 +210,46 @@ class ChatService:
                     rag_temperature = cfg.get("temperature", 0.7)
                     rag_max_tokens = cfg.get("max_tokens", 2048)
                     
+                    enable_query_reformulation = cfg.get("enable_query_reformulation", True)
+                    enable_history_compression = cfg.get("enable_history_compression", True)
+                    history_limit = cfg.get("history_limit", 3)
+                    buffer_limit = cfg.get("buffer_limit", 2)
+                    compression_model = cfg.get("compression_model", "gemini-1.5-flash")
+                    
                     # Update debug metrics with config info
                     debug_metrics["model_used"] = rag_model
                     debug_metrics["reranker_used"] = rag_reranker
 
                 
+        # 2.5 Query Reformulation (Viết lại truy vấn dựa trên lịch sử để tăng độ chính xác)
+        search_query = question
+        search_embedding = q_embedding
+        
+        if enable_query_reformulation and history and len(history) >= 3:
+            # Bỏ tin nhắn user vừa gửi ở cuối cùng để lấy lịch sử hội thoại trước đó
+            past_history = history[:-1]
+            reformulation_prompt = prompt_service.build_reformulation_prompt(past_history, question)
+            try:
+                logger.info(f"[CHAT] Đang viết lại truy vấn bằng model={compression_model}...")
+                rewritten_query = await self._generate_answer(
+                    prompt=reformulation_prompt,
+                    api_key=rag_api_key,
+                    model_name=compression_model,
+                    temperature=0.0
+                )
+                rewritten_query = rewritten_query.strip()
+                if rewritten_query and not rewritten_query.startswith("Xin lỗi, hệ thống AI"):
+                    search_query = rewritten_query
+                    logger.info(f"[CHAT] Đã viết lại câu hỏi: '{question}' -> '{search_query}'")
+                    # Tiến hành embed lại câu hỏi đã viết lại để tìm kiếm vector chính xác hơn
+                    start_reembed = time.time()
+                    new_embed = self._try_embed_question(search_query)
+                    if new_embed is not None:
+                        search_embedding = new_embed
+                        logger.info(f"[CHAT] Đã embed lại truy vấn mới trong {round((time.time() - start_reembed) * 1000, 2)}ms")
+            except Exception as ref_err:
+                logger.error(f"[CHAT] Query reformulation failed: {ref_err}")
+
         grouped_results = []
         errors = []
         
@@ -213,8 +261,8 @@ class ChatService:
             for ds_id in dataset_ids:
                 res = await self._search_dataset(
                     ds_id, 
-                    question, 
-                    q_embedding,
+                    search_query, # Sử dụng search_query đã tối ưu
+                    search_embedding, # Sử dụng embedding tương ứng
                     top_k=rag_top_k
                 )
                 grouped_results.append(res)
@@ -237,7 +285,7 @@ class ChatService:
         # 4. Reranking Process (Sắp xếp lại kết quả) with timing
         start_rerank = time.time()
         if rag_reranker and rag_reranker != "None":
-            self._apply_reranking(question, grouped_results, reranker_model=rag_reranker)
+            self._apply_reranking(search_query, grouped_results, reranker_model=rag_reranker)
         debug_metrics["rerank_time_ms"] = round((time.time() - start_rerank) * 1000, 2)
 
         # 4.3 Parent-Child Retrieval: Thay thế child chunks bằng parent chunks để gửi làm context cho LLM
@@ -329,13 +377,46 @@ class ChatService:
                     debug_metrics=debug_metrics
                 )
 
+        # 4.7 History Compression (Nén lịch sử hội thoại nếu vượt quá ngưỡng đệm tích lũy)
+        history_for_prompt = history[:-1] if history else []
+        
+        if enable_history_compression and session_id and history and (len(history) - 1) > 2 * (history_limit + buffer_limit):
+            num_keep = 2 * history_limit
+            # Tin nhắn cần nén: tất cả trừ num_keep tin nhắn gần nhất trong lịch sử cũ
+            messages_to_compress = history[:-1][:-num_keep]
+            raw_history_to_keep = history[:-1][-num_keep:]
+            
+            if messages_to_compress:
+                compression_prompt = prompt_service.build_compression_prompt(
+                    old_summary=conversation_summary,
+                    messages_to_compress=messages_to_compress
+                )
+                try:
+                    logger.info(f"[CHAT] Đang nén {len(messages_to_compress)} tin nhắn cũ trong session {session_id} với model={compression_model}...")
+                    new_summary = await self._generate_answer(
+                        prompt=compression_prompt,
+                        api_key=rag_api_key,
+                        model_name=compression_model,
+                        temperature=0.3
+                    )
+                    new_summary = new_summary.strip()
+                    if new_summary and not new_summary.startswith("Xin lỗi, hệ thống AI"):
+                        conversation_summary = new_summary
+                        # Cập nhật vào DB
+                        await self.session_repo.update_session(session_id, {"conversation_summary": conversation_summary})
+                        logger.info(f"[CHAT] Đã cập nhật conversation_summary thành công cho session {session_id}")
+                        history_for_prompt = raw_history_to_keep
+                except Exception as comp_err:
+                    logger.error(f"[CHAT] History compression failed: {comp_err}")
+        
         # 5. Generation Process (Sinh câu trả lời từ LLM) - CHỈ khi có context hoặc fallback_llm
         start_llm = time.time()
         prompt = prompt_service.build_prompt(
-            question, 
-            grouped_results, 
-            history, 
-            system_prompt=rag_system_prompt
+            question=question, # Trả lời cho câu hỏi gốc của user
+            grouped_results=grouped_results, 
+            history=history_for_prompt, 
+            system_prompt=rag_system_prompt,
+            conversation_summary=conversation_summary
         )
         answer = await self._generate_answer(
             prompt, 

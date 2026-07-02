@@ -41,6 +41,15 @@ export interface ChatbotConfig {
     // ═══════════════════════════════════════════════════════════════
     no_context_behavior?: 'reject' | 'fallback_llm' | 'custom_message';
     no_context_message?: string;
+
+    // ═══════════════════════════════════════════════════════════════
+    // 📝 CONTEXT & HISTORY SETTINGS
+    // ═══════════════════════════════════════════════════════════════
+    enable_query_reformulation?: boolean;
+    enable_history_compression?: boolean;
+    history_limit?: number;
+    buffer_limit?: number;
+    compression_model?: string;
 }
 
 export interface Chatbot {

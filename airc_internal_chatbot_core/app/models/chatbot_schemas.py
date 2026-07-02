@@ -87,6 +87,34 @@ class ChatbotConfigModel(BaseModel):
         default=None,
         description="Thông báo khi không tìm thấy (dùng với custom_message)"
     )
+    
+    # ═══════════════════════════════════════════════════════════════
+    # 📝 CONTEXT & HISTORY SETTINGS - Quản lý ngữ cảnh và lịch sử
+    # ═══════════════════════════════════════════════════════════════
+    enable_query_reformulation: bool = Field(
+        default=True,
+        description="Bật/Tắt viết lại câu hỏi dựa trên lịch sử hội thoại"
+    )
+    enable_history_compression: bool = Field(
+        default=True,
+        description="Bật/Tắt nén lịch sử cuộc trò chuyện"
+    )
+    history_limit: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Số lượt chat thô gần nhất giữ lại"
+    )
+    buffer_limit: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Số lượt chat đệm trước khi kích hoạt nén"
+    )
+    compression_model: str = Field(
+        default="gemini-1.5-flash",
+        description="Model LLM dùng để viết lại câu hỏi và tóm tắt lịch sử"
+    )
 
 
 class ChatbotCreate(BaseModel):

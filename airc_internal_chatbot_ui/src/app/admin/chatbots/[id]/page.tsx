@@ -18,14 +18,16 @@ import {
     Tag,
     Row,
     Col,
-    AutoComplete
+    AutoComplete,
+    Switch
 } from 'antd';
 import {
     RobotOutlined,
     SaveOutlined,
     ArrowLeftOutlined,
     QuestionCircleOutlined,
-    LockOutlined
+    LockOutlined,
+    HistoryOutlined
 } from '@ant-design/icons';
 import MainLayout from '@/components/Layout/MainLayout';
 import AuthGuard from '@/components/Auth/AuthGuard';
@@ -60,6 +62,7 @@ export default function EditChatbotPage() {
 
     // Watch no_context_behavior for conditional rendering
     const noContextBehavior = Form.useWatch('no_context_behavior', form);
+    const enableHistoryCompression = Form.useWatch('enable_history_compression', form);
 
     // Get ID from params (could be string or array)
     const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -112,6 +115,12 @@ export default function EditChatbotPage() {
                 // Config - No context behavior
                 no_context_behavior: botData.config.no_context_behavior || 'reject',
                 no_context_message: botData.config.no_context_message,
+                // Config - History & Context Enrichment
+                enable_query_reformulation: botData.config.enable_query_reformulation ?? true,
+                enable_history_compression: botData.config.enable_history_compression ?? true,
+                history_limit: botData.config.history_limit ?? 3,
+                buffer_limit: botData.config.buffer_limit ?? 2,
+                compression_model: botData.config.compression_model || 'gemini-1.5-flash',
             });
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -153,6 +162,12 @@ export default function EditChatbotPage() {
                     // No context behavior
                     no_context_behavior: values.no_context_behavior,
                     no_context_message: values.no_context_behavior === 'custom_message' ? values.no_context_message : null,
+                    // History & Context Enrichment
+                    enable_query_reformulation: values.enable_query_reformulation,
+                    enable_history_compression: values.enable_history_compression,
+                    history_limit: values.history_limit,
+                    buffer_limit: values.buffer_limit,
+                    compression_model: values.compression_model,
                 },
             };
 
@@ -509,6 +524,81 @@ export default function EditChatbotPage() {
                                         placeholder="VD: Bạn là trợ lý AI của AIRC. Trả lời ngắn gọn, trích dẫn nguồn..."
                                         style={{ fontFamily: 'monospace' }}
                                     />
+                                </Form.Item>
+                            </Card>
+
+                            {/* SECTION 4.5: QUẢN LÝ LỊCH SỬ & NGỮ CẢNH */}
+                            <Card
+                                title="Quản lý lịch sử & Ngữ cảnh"
+                                style={{ marginBottom: 24, borderRadius: 8 }}
+                                styles={{ header: { borderBottom: '2px solid #13c2c2' } }}
+                            >
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
+                                    padding: '8px 12px', background: '#e6fffb', borderRadius: 6
+                                }}>
+                                    <HistoryOutlined style={{ fontSize: 18, color: '#13c2c2' }} />
+                                    <span style={{ fontWeight: 500 }}>Nén ngữ cảnh & Viết lại câu hỏi</span>
+                                </div>
+
+                                <Row gutter={24}>
+                                    <Col span={12}>
+                                        <Form.Item 
+                                            name="enable_query_reformulation" 
+                                            label="Viết lại câu hỏi (Query Reformulation)" 
+                                            valuePropName="checked"
+                                            tooltip="Tự động phân tích lịch sử để viết lại câu hỏi hiện tại thành một truy vấn độc lập hoàn chỉnh trước khi tìm kiếm vector."
+                                        >
+                                            <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item 
+                                            name="enable_history_compression" 
+                                            label="Tóm tắt lịch sử (History Compression)" 
+                                            valuePropName="checked"
+                                            tooltip="Tóm tắt các tin nhắn cũ hơn khi cuộc trò chuyện vượt quá giới hạn, giúp tiết kiệm token và tránh vượt quá giới hạn ngữ cảnh của mô hình sinh."
+                                        >
+                                            <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                {enableHistoryCompression && (
+                                    <div style={{ padding: '16px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0', marginBottom: 16 }}>
+                                        <Row gutter={24}>
+                                            <Col span={12}>
+                                                <Form.Item 
+                                                    name="history_limit" 
+                                                    label="Số lượt chat giữ lại (History Limit)"
+                                                    tooltip="Số lượng lượt chat gần nhất được giữ nguyên ở dạng thô để duy trì sự mạch lạc tự nhiên."
+                                                >
+                                                    <InputNumber min={1} max={10} style={{ width: '100%' }} size="large" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12}>
+                                                <Form.Item 
+                                                    name="buffer_limit" 
+                                                    label="Ngưỡng đệm (Buffer Limit)"
+                                                    tooltip="Số lượt chat tối đa được phép vượt quá giới hạn trước khi chạy tiến trình tóm tắt tiếp theo (giúp giảm thiểu chi phí LLM)."
+                                                >
+                                                    <InputNumber min={1} max={5} style={{ width: '100%' }} size="large" />
+                                                </Form.Item>
+                                            </Col>
+                                        </Row>
+                                    </div>
+                                )}
+
+                                <Form.Item 
+                                    name="compression_model" 
+                                    label="AI Model dùng để tóm tắt/viết lại"
+                                    rules={[{ required: true, message: 'Vui lòng chọn model tóm tắt' }]}
+                                >
+                                    <Select size="large">
+                                        <Option value="gemini-1.5-flash">gemini-1.5-flash (Khuyến nghị - Nhanh & Rẻ)</Option>
+                                        <Option value="gemini-1.5-pro">gemini-1.5-pro (Tốt hơn cho tóm tắt phức tạp)</Option>
+                                        <Option value="qwen-3.6-35b">qwen-3.6-35b (Local model)</Option>
+                                    </Select>
                                 </Form.Item>
                             </Card>
 
