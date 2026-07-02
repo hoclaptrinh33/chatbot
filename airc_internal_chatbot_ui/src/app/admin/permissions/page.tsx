@@ -34,8 +34,8 @@ export default function PermissionsPage() {
         } catch (error: unknown) {
             console.error('Fetch permissions error:', error);
             notification.error({
-                message: 'Loi tai du lieu',
-                description: 'Khong the lay danh sach permissions tu server.',
+                message: 'Lỗi tải dữ liệu',
+                description: 'Không thể lấy danh sách quyền hạn từ server.',
             });
         } finally {
             setLoading(false);
@@ -58,15 +58,15 @@ export default function PermissionsPage() {
         try {
             await rbacService.deletePermission(id, token);
             notification.success({
-                message: 'Xoa thanh cong',
-                description: 'Permission da duoc xoa.',
+                message: 'Xóa thành công',
+                description: 'Quyền hạn đã được xóa.',
             });
             fetchPermissions(); // Reload list
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Xoa that bai',
-                description: err.response?.data?.detail || 'Co loi xay ra khi xoa.',
+                message: 'Xóa thất bại',
+                description: err.response?.data?.detail || 'Có lỗi xảy ra khi xóa.',
             });
         }
     };
@@ -79,14 +79,14 @@ export default function PermissionsPage() {
                         items={[
                             { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Permissions' },
+                            { title: 'Quyền hạn' },
                         ]}
                     />
 
                     <div className="flex justify-between items-center mt-4">
                         <div className="flex items-center gap-3">
                             <SafetyCertificateOutlined className="text-2xl text-red-700" />
-                            <h1 className="text-2xl font-bold m-0">Quan ly Permissions</h1>
+                            <h1 className="text-2xl font-bold m-0">Quản lý quyền hạn</h1>
                         </div>
 
                         <Button
@@ -95,7 +95,7 @@ export default function PermissionsPage() {
                             onClick={() => setIsCreateModalVisible(true)}
                             className="bg-red-700 hover:bg-red-800"
                         >
-                            Tao Permission
+                            Tạo quyền hạn
                         </Button>
                     </div>
                 </div>

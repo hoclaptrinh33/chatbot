@@ -25,13 +25,13 @@ const PermissionTable: React.FC<PermissionTableProps> = ({
     // Cau hinh cot cho bang
     const columns: ColumnsType<Permission> = [
         {
-            title: 'Ten Permission',
+            title: 'Tên quyền hạn',
             dataIndex: 'name',
             key: 'name',
             render: (text, record) => (
                 <Space>
                     <span className="font-medium">{text}</span>
-                    {record.is_system && <Tag color="purple">SYSTEM</Tag>}
+                    {record.is_system && <Tag color="purple">HỆ THỐNG</Tag>}
                 </Space>
             ),
             sorter: (a, b) => a.name.localeCompare(b.name),
@@ -43,7 +43,7 @@ const PermissionTable: React.FC<PermissionTableProps> = ({
             render: (text) => <code className="text-xs bg-gray-100 px-1 rounded">{text}</code>,
         },
         {
-            title: 'Resource',
+            title: 'Đối tượng',
             dataIndex: 'resource',
             key: 'resource',
             render: (text) => <Tag color="cyan">{text.toUpperCase()}</Tag>,
@@ -57,7 +57,7 @@ const PermissionTable: React.FC<PermissionTableProps> = ({
             onFilter: (value, record) => record.resource.includes(value as string),
         },
         {
-            title: 'Action',
+            title: 'Thao tác',
             dataIndex: 'action',
             key: 'action',
             render: (text) => {
@@ -71,18 +71,18 @@ const PermissionTable: React.FC<PermissionTableProps> = ({
             },
         },
         {
-            title: 'Mo ta',
+            title: 'Mô tả',
             dataIndex: 'description',
             key: 'description',
             ellipsis: true,
         },
         {
-            title: 'Hanh dong',
+            title: 'Hành động',
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
                     {onEdit && (
-                        <Tooltip title="Sua">
+                        <Tooltip title="Sửa">
                             <Button
                                 type="text"
                                 icon={<EditOutlined />}
@@ -93,13 +93,13 @@ const PermissionTable: React.FC<PermissionTableProps> = ({
                         </Tooltip>
                     )}
                     {onDelete && (
-                        <Tooltip title={record.is_system ? "Khong the xoa System Permission" : "Xoa"}>
+                        <Tooltip title={record.is_system ? "Không thể xóa quyền hệ thống" : "Xóa"}>
                             <Popconfirm
-                                title="Xoa permission nay?"
-                                description="Ban co chac muon xoa permission nay khong?"
+                                title="Xóa quyền hạn này?"
+                                description="Bạn có chắc muốn xóa quyền hạn này không?"
                                 onConfirm={() => onDelete(record.id || record._id!)}
-                                okText="Xoa"
-                                cancelText="Huy"
+                                okText="Xóa"
+                                cancelText="Hủy"
                                 okButtonProps={{ danger: true }}
                                 disabled={record.is_system}
                             >

@@ -48,7 +48,7 @@ export default function ManageUserRolesPage() {
                 setTargetKeys(roleIds);
 
             } catch (_error: unknown) {
-                notification.error({ message: 'Loi tai du lieu' });
+                notification.error({ message: 'Lỗi tải dữ liệu' });
             } finally {
                 setLoading(false);
             }
@@ -79,14 +79,14 @@ export default function ManageUserRolesPage() {
             // Backend: POST /users/{id}/roles -> Assign a role.
 
             notification.info({
-                message: 'Tinh nang dang phat trien',
-                description: 'Backend can bo sung API bulk update roles',
+                message: 'Tính năng đang phát triển',
+                description: 'Backend cần bổ sung API cập nhật vai trò hàng loạt (bulk update roles)',
             });
 
         } catch (_error: unknown) {
             notification.error({
-                message: 'Luu that bai',
-                description: 'Co loi xay ra.',
+                message: 'Lưu thất bại',
+                description: 'Có lỗi xảy ra.',
             });
         } finally {
             setLoading(false);
@@ -109,8 +109,8 @@ export default function ManageUserRolesPage() {
                         items={[
                             { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Users', href: '/admin/users' },
-                            { title: 'Quan ly Roles' },
+                            { title: 'Người dùng', href: '/admin/users' },
+                            { title: 'Quản lý vai trò' },
                         ]}
                     />
 
@@ -119,23 +119,23 @@ export default function ManageUserRolesPage() {
                             icon={<ArrowLeftOutlined />}
                             onClick={() => router.back()}
                         />
-                        <h1 className="text-2xl font-bold m-0">Quan ly Roles cho User</h1>
+                        <h1 className="text-2xl font-bold m-0">Quản lý vai trò cho người dùng</h1>
                     </div>
                 </div>
 
                 <div className="max-w-4xl mx-auto">
                     <Card bordered={false} className="shadow-sm rounded-lg mb-6">
-                        <Descriptions title="Thong tin User">
+                        <Descriptions title="Thông tin người dùng">
                             <Descriptions.Item label="User ID">{userId}</Descriptions.Item>
-                            <Descriptions.Item label="Ten">Nguyen Van A (Mock)</Descriptions.Item>
+                            <Descriptions.Item label="Tên">Nguyễn Văn A (Mock)</Descriptions.Item>
                         </Descriptions>
                     </Card>
 
-                    <Card title="Phan quyen Roles" bordered={false} className="shadow-sm rounded-lg">
+                    <Card title="Phân quyền vai trò" bordered={false} className="shadow-sm rounded-lg">
                         <div className="flex justify-center">
                             <Transfer
                                 dataSource={dataSource}
-                                titles={['Roles Kha dung', 'Roles Da gan']}
+                                titles={['Vai trò khả dụng', 'Vai trò đã gán']}
                                 targetKeys={targetKeys}
                                 selectedKeys={selectedKeys}
                                 onChange={handleChange}
@@ -162,7 +162,7 @@ export default function ManageUserRolesPage() {
                                 loading={loading}
                                 className="bg-red-700 w-48"
                             >
-                                Luu Thay Doi
+                                Lưu thay đổi
                             </Button>
                         </div>
                     </Card>

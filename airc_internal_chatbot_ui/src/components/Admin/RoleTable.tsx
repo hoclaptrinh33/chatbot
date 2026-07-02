@@ -26,7 +26,7 @@ const RoleTable: React.FC<RoleTableProps> = ({
 }) => {
     const columns: ColumnsType<Role> = [
         {
-            title: 'Ten Role',
+            title: 'Tên vai trò',
             dataIndex: 'name',
             key: 'name',
             render: (text, record) => (
@@ -34,7 +34,7 @@ const RoleTable: React.FC<RoleTableProps> = ({
                     <Tag color={text === 'admin' ? 'red' : text === 'teacher' ? 'blue' : 'green'}>
                         {text.toUpperCase()}
                     </Tag>
-                    {record.is_system && <Tag color="purple">SYSTEM</Tag>}
+                    {record.is_system && <Tag color="purple">HỆ THỐNG</Tag>}
                 </Space>
             ),
         },
@@ -45,27 +45,27 @@ const RoleTable: React.FC<RoleTableProps> = ({
             render: (text) => <code className="text-xs bg-gray-100 px-1 rounded">{text}</code>,
         },
         {
-            title: 'Mo ta',
+            title: 'Mô tả',
             dataIndex: 'description',
             key: 'description',
         },
         {
-            title: 'Permissions',
+            title: 'Quyền hạn',
             dataIndex: 'permission_count',
             key: 'permission_count',
             render: (count) => (
                 <span className="text-gray-500">
-                    {count !== undefined ? `${count} quyen` : '0 quyen'}
+                    {count !== undefined ? `${count} quyền` : '0 quyền'}
                 </span>
             ),
         },
         {
-            title: 'Hanh dong',
+            title: 'Hành động',
             key: 'action',
             render: (_, record) => (
                 <Space size="middle">
                     {onAssignPermissions && (
-                        <Tooltip title="Gan quyen">
+                        <Tooltip title="Gán quyền">
                             <Button
                                 type="text"
                                 icon={<SettingOutlined />}
@@ -76,7 +76,7 @@ const RoleTable: React.FC<RoleTableProps> = ({
                         </Tooltip>
                     )}
                     {onEdit && (
-                        <Tooltip title="Sua">
+                        <Tooltip title="Sửa">
                             <Button
                                 type="text"
                                 icon={<EditOutlined />}
@@ -87,13 +87,13 @@ const RoleTable: React.FC<RoleTableProps> = ({
                         </Tooltip>
                     )}
                     {onDelete && (
-                        <Tooltip title={record.is_system ? "Khong the xoa System Role" : "Xoa"}>
+                        <Tooltip title={record.is_system ? "Không thể xóa vai trò hệ thống" : "Xóa"}>
                             <Popconfirm
-                                title="Xoa role nay?"
-                                description="Ban co chac muon xoa role nay khong?"
+                                title="Xóa vai trò này?"
+                                description="Bạn có chắc muốn xóa vai trò này không?"
                                 onConfirm={() => onDelete(record.id || record._id!)}
-                                okText="Xoa"
-                                cancelText="Huy"
+                                okText="Xóa"
+                                cancelText="Hủy"
                                 okButtonProps={{ danger: true }}
                                 disabled={record.is_system}
                             >

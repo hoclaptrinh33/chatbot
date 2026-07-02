@@ -36,8 +36,8 @@ export default function UsersPage() {
         } catch (error: unknown) {
             console.error(error);
             notification.error({
-                message: 'Loi tai du lieu',
-                description: 'Khong the lay danh sach users (chi Admin moi co quyen).',
+                message: 'Lỗi tải dữ liệu',
+                description: 'Không thể lấy danh sách người dùng (chỉ Quản trị viên mới có quyền).',
             });
         } finally {
             setLoading(false);
@@ -61,13 +61,13 @@ export default function UsersPage() {
         if (!token) return;
         try {
             await authService.deleteUser(user.id, token);
-            notification.success({ message: 'Da xoa user' });
+            notification.success({ message: 'Đã xóa người dùng' });
             fetchUsers();
         } catch (error: unknown) {
             const err = error as AxiosError<{ detail: string }>;
             notification.error({
-                message: 'Loi xoa user',
-                description: err.response?.data?.detail || 'Khong the xoa user',
+                message: 'Lỗi xóa người dùng',
+                description: err.response?.data?.detail || 'Không thể xóa người dùng',
             });
         }
     };
@@ -85,14 +85,14 @@ export default function UsersPage() {
                         items={[
                             { title: 'Dashboard', href: '/dashboard' },
                             { title: 'Admin' },
-                            { title: 'Users' },
+                            { title: 'Người dùng' },
                         ]}
                     />
 
                     <div className="flex justify-between items-center mt-4">
                         <div className="flex items-center gap-3">
                             <TeamOutlined className="text-2xl text-red-700" />
-                            <h1 className="text-2xl font-bold m-0">Quan ly Users</h1>
+                            <h1 className="text-2xl font-bold m-0">Quản lý người dùng</h1>
                         </div>
                         <Button
                             type="primary"
@@ -100,7 +100,7 @@ export default function UsersPage() {
                             onClick={handleCreateUser}
                             className="bg-red-700 hover:bg-red-800"
                         >
-                            Tao User
+                            Tạo người dùng
                         </Button>
                     </div>
                 </div>
