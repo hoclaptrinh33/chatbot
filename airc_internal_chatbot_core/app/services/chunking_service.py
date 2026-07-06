@@ -7,6 +7,10 @@ import os
 from typing import List, Dict, Optional
 import logging
 
+from app.services.document_profiler import document_profiler
+from app.services.section_parser import section_parser
+from app.services.domain_splitter import domain_splitters
+
 logger = logging.getLogger(__name__)
 
 
@@ -404,6 +408,17 @@ class ChunkingService:
         parts = sentence_end.split(text)
         return [p.strip() for p in parts if p.strip()]
 
+    def _is_lead_line(self, line: str) -> bool:
+        """Kiểm tra xem dòng văn bản có phải dòng dẫn nhập (kết thúc bằng : hoặc chứa từ khóa dẫn) hay không"""
+        line_str = line.strip()
+        if not line_str:
+            return False
+        if line_str.endswith(":"):
+            return True
+        if re.search(r'(như sau|sau đây|dưới đây)[:\.]\s*$', line_str, re.IGNORECASE):
+            return True
+        return False
+
     def _split_legal_hierarchy(
         self, 
         content: str, 
@@ -416,129 +431,241 @@ class ChunkingService:
         Đồng thời bảo vệ bảng biểu Markdown nếu có.
         Gom các block con lại sao cho mỗi child chunk gần với child_size và luôn đính kèm context_prefix.
         """
+        # Tiền xử lý gộp các dòng đánh số bị ngắt dòng vật lý do parser
+        raw_lines = content.split('\n')
+        processed_lines = []
+        skip_next = False
+        
+        # Regex nhận diện ký tự đánh số/khoản/điểm đơn độc bị ngắt dòng
+        isolated_num_pattern = re.compile(r'^\s*(?:\d+|[a-zđ]|Khoản\s+\d+)[\.\):\-\*•]\s*$', re.IGNORECASE)
+        
+        for idx in range(len(raw_lines)):
+            if skip_next:
+                skip_next = False
+                continue
+                
+            line = raw_lines[idx]
+            line_strip = line.strip()
+            
+            if isolated_num_pattern.match(line_strip) and idx + 1 < len(raw_lines):
+                next_line = raw_lines[idx + 1]
+                # Gộp dòng hiện tại với dòng tiếp theo
+                combined_line = line.rstrip('\r\n') + " " + next_line.lstrip()
+                processed_lines.append(combined_line)
+                skip_next = True
+            else:
+                processed_lines.append(line)
+                
+        content = '\n'.join(processed_lines)
+
         # Chia thành các block lớn (văn bản thường hoặc bảng biểu)
         initial_blocks = self._split_into_blocks(content)
         
-        # Regex nhận diện Khoản (ví dụ: "1. ", "2. ", "Khoản 1. ", "Điều 1. ")
-        clause_pattern = re.compile(r'^\s*(?:\d+|Khoản\s+\d+)[:\.]\s')
-        # Regex nhận diện Điểm (ví dụ: "a) ", "b) ", "- ", "+ ")
-        point_pattern = re.compile(r'^\s*(?:[a-z]\)|[+-])\s')
+        # Regex nhận diện các cấu trúc pháp lý (nới lỏng khoảng trắng)
+        clause_pattern = re.compile(r'^\s*(?:\d+|Khoản\s+\d+)[:\.]\s*')
+        point_header_pattern = re.compile(r'^\s*[a-zđ]\)\s*', re.IGNORECASE)  # Ví dụ: a), b), đ)
+        bullet_pattern = re.compile(r'^\s*[-+•\*]\s*')
         
-        refined_blocks = []
+        items = []
+        active_clause_hdr = ""
+        active_point_hdr = ""
+        
         # Kích thước tối đa cho phần content của chunk (không tính độ dài prefix)
         max_chunk_content_size = max(100, child_size - len(context_prefix) - 5)
         
-        for block in initial_blocks:
-            block = block.strip()
+        # Ngưỡng an toàn để gộp danh sách tránh bị bẻ vụn
+        SAFE_LIST_LIMIT = max(800, child_size * 2)
+        
+        # Danh sách các dòng dẫn nhập chưa được liên kết với con nào
+        # Mỗi phần tử dạng: (level, text, context_headers)
+        pending_leads = []
+        
+        def flush_pending_leads(target_level=None):
+            """Đưa các dòng dẫn nhập đang chờ vào items dưới dạng item độc lập nếu chúng không có con ở cấp thấp hơn"""
+            nonlocal pending_leads
+            remaining_leads = []
+            for lvl, text_val, hdrs in pending_leads:
+                if target_level is None or lvl >= target_level:
+                    add_refined_item(text_val, hdrs, lvl, is_lead_only=True)
+                else:
+                    remaining_leads.append((lvl, text_val, hdrs))
+            pending_leads = remaining_leads
+
+        def add_refined_item(text_val, context_hdrs, lvl, is_lead_only=False):
+            """Chia nhỏ câu nếu vượt quá max_chunk_content_size và đưa vào items"""
+            if len(text_val) <= max_chunk_content_size:
+                items.append({
+                    "text": text_val,
+                    "context_headers": context_hdrs,
+                    "level": lvl,
+                    "is_lead_only": is_lead_only
+                })
+            else:
+                sentences = self._split_by_sentences(text_val)
+                for sent in sentences:
+                    sent = sent.strip()
+                    if not sent:
+                        continue
+                    if len(sent) <= max_chunk_content_size:
+                        items.append({
+                            "text": sent,
+                            "context_headers": context_hdrs,
+                            "level": lvl,
+                            "is_lead_only": is_lead_only
+                        })
+                    else:
+                        forced = self._force_split(sent, max_chunk_content_size, overlap=0)
+                        for fc in forced:
+                            fc = fc.strip()
+                            if fc:
+                                items.append({
+                                    "text": fc,
+                                    "context_headers": context_hdrs,
+                                    "level": lvl,
+                                    "is_lead_only": is_lead_only
+                                })
+
+        i = 0
+        while i < len(initial_blocks):
+            block = initial_blocks[i].strip()
             if not block:
+                i += 1
                 continue
                 
             # Nếu là bảng biểu
             if "|" in block:
-                if len(block) <= max_chunk_content_size:
-                    refined_blocks.append(block)
-                else:
-                    # Bảng quá lớn -> cắt nhỏ bảng
-                    table_parts = self._split_large_table(block, max_chunk_content_size)
-                    refined_blocks.extend(table_parts)
-                continue
-                
-            # Nếu là văn bản thường -> Phân rã thành các Khoản bằng cách duyệt qua các dòng
-            lines = block.split('\n')
-            current_clause = []
-            clause_blocks = []
-            
-            for line in lines:
-                if not line.strip():
-                    if current_clause:
-                        current_clause.append(line)
-                    continue
-                if clause_pattern.match(line):
-                    if current_clause:
-                        clause_blocks.append('\n'.join(current_clause))
-                        current_clause = []
-                    current_clause.append(line)
-                else:
-                    if not current_clause:
-                        current_clause.append(line)
-                    else:
-                        current_clause.append(line)
-            if current_clause:
-                clause_blocks.append('\n'.join(current_clause))
-                
-            # Duyệt qua các Khoản vừa được tách
-            for clause in clause_blocks:
-                clause = clause.strip()
-                if not clause:
-                    continue
-                if len(clause) <= max_chunk_content_size:
-                    refined_blocks.append(clause)
-                else:
-                    # Phân rã Khoản xuống cấp Điểm
-                    sub_blocks = []
-                    sub_lines = clause.split('\n')
-                    current_sub = []
-                    for line in sub_lines:
-                        if not line.strip():
-                            if current_sub:
-                                current_sub.append(line)
-                            continue
-                        if point_pattern.match(line):
-                            if current_sub:
-                                sub_blocks.append('\n'.join(current_sub))
-                                current_sub = []
-                            current_sub.append(line)
-                        else:
-                            if not current_sub:
-                                current_sub.append(line)
-                            else:
-                                current_sub.append(line)
-                    if current_sub:
-                        sub_blocks.append('\n'.join(current_sub))
+                lead_line = ""
+                # Lấy dòng dẫn nhập gần nhất đang chờ trong pending_leads
+                if pending_leads:
+                    lead_line = pending_leads[-1][1]
+                    pending_leads.pop()
+                elif items:
+                    # Fallback kiểm tra item cuối cùng có phải là câu dẫn nhập cấp cao không
+                    last_item = items[-1]
+                    if last_item.get("is_lead_only") or (not last_item["context_headers"] and self._is_lead_line(last_item["text"])):
+                        lead_line = last_item["text"]
+                        items.pop()
                         
-                    # Duyệt qua các sub_blocks cấp Điểm
-                    for sb in sub_blocks:
-                        sb = sb.strip()
-                        if not sb:
-                            continue
-                        if len(sb) <= max_chunk_content_size:
-                            refined_blocks.append(sb)
+                # Chia nhỏ bảng nếu kích thước vượt giới hạn
+                if len(block) <= max_chunk_content_size:
+                    items.append({
+                        "text": block,
+                        "context_headers": [lead_line] if lead_line else [],
+                        "level": 2,
+                        "is_lead_only": False
+                    })
+                else:
+                    table_parts = self._split_large_table(block, max_chunk_content_size)
+                    for part in table_parts:
+                        items.append({
+                            "text": part,
+                            "context_headers": [lead_line] if lead_line else [],
+                            "level": 2,
+                            "is_lead_only": False
+                        })
+            else:
+                # Xử lý khối văn bản thường: tách thành các dòng và phân loại phân cấp
+                lines = block.split('\n')
+                for line in lines:
+                    line_strip = line.strip()
+                    if not line_strip:
+                        continue
+                        
+                    # 1. Xác định level của dòng
+                    if clause_pattern.match(line_strip):
+                        lvl = 1
+                        # Chuẩn bị đổi sang Khoản mới -> flush các lead đang chờ của Khoản cũ
+                        flush_pending_leads(1)
+                        active_clause_hdr = line_strip
+                        active_point_hdr = ""
+                    elif point_header_pattern.match(line_strip):
+                        lvl = 2
+                        flush_pending_leads(2)
+                        active_point_hdr = line_strip
+                    elif bullet_pattern.match(line_strip):
+                        lvl = 3
+                    else:
+                        # Dòng thường
+                        if active_point_hdr:
+                            lvl = 3
+                        elif active_clause_hdr:
+                            lvl = 2
                         else:
-                            # Phân rã sb xuống cấp Câu
-                            sentences = self._split_by_sentences(sb)
-                            for sent in sentences:
-                                sent = sent.strip()
-                                if not sent:
-                                    continue
-                                if len(sent) <= max_chunk_content_size:
-                                    refined_blocks.append(sent)
-                                else:
-                                    # Fallback cuối cùng: dùng _force_split
-                                    forced = self._force_split(sent, max_chunk_content_size, overlap=0)
-                                    refined_blocks.extend([fc.strip() for fc in forced if fc.strip()])
-                                    
-        # 3. Gom các refined_blocks thành các child chunks
+                            lvl = 1
+
+                    # 2. Xác định context_headers kế thừa từ cấp trên
+                    hdrs = []
+                    if lvl == 2:
+                        if active_clause_hdr:
+                            hdrs.append(active_clause_hdr)
+                    elif lvl == 3:
+                        if active_clause_hdr:
+                            hdrs.append(active_clause_hdr)
+                        if active_point_hdr:
+                            hdrs.append(active_point_hdr)
+
+                    # 3. Kiểm tra xem dòng có phải là dòng dẫn nhập (lead)
+                    is_lead = self._is_lead_line(line_strip)
+                    
+                    if is_lead:
+                        # Lưu vào hàng đợi pending để làm ngữ cảnh cho con, tránh tạo chunk mồ côi
+                        pending_leads.append((lvl, line_strip, hdrs))
+                    else:
+                        # Giải phóng các lead cấp cao hơn đang chờ vì đã tìm thấy dòng con kế thừa
+                        pending_leads = [lead for lead in pending_leads if lead[0] >= lvl]
+                        add_refined_item(line_strip, hdrs, lvl, is_lead_only=False)
+            i += 1
+
+        # Dọn dẹp nốt các dòng dẫn nhập còn tồn đọng ở cuối tài liệu
+        flush_pending_leads()
+
+        # Hàm dựng text cho một nhóm items kèm theo các header ngữ cảnh cha
+        def get_chunk_text(items_list):
+            if not items_list:
+                return ""
+            first_item = items_list[0]
+            prefix_parts = []
+            for hdr in first_item["context_headers"]:
+                prefix_parts.append(hdr)
+            prefix = "\n".join(prefix_parts) + "\n" if prefix_parts else ""
+            content_text = "\n\n".join([item["text"] for item in items_list])
+            return prefix + content_text
+
+        # Gom cụm các item thành các child chunks
         child_chunks = []
-        current_chunk_parts = []
-        current_len = 0
+        current_chunk_items = []
         
-        for block in refined_blocks:
-            block_len = len(block)
-            if current_len + block_len + (2 if current_chunk_parts else 0) <= max_chunk_content_size:
-                current_chunk_parts.append(block)
-                current_len += block_len + (2 if len(current_chunk_parts) > 1 else 0)
+        for item in items:
+            test_items = current_chunk_items + [item]
+            test_text = get_chunk_text(test_items)
+            
+            # Kiểm tra xem item mới và item cuối cùng trong chunk hiện tại có chung ngữ cảnh trực tiếp hay không
+            is_same_list_group = False
+            if current_chunk_items:
+                last_item = current_chunk_items[-1]
+                # Cùng chung cha trực tiếp gần nhất
+                if last_item["context_headers"] and item["context_headers"]:
+                    if last_item["context_headers"][-1] == item["context_headers"][-1]:
+                        is_same_list_group = True
+                # Hoặc item mới là con trực tiếp của item liền trước
+                elif last_item["text"] in item["context_headers"]:
+                    is_same_list_group = True
+            
+            if len(test_text) <= max_chunk_content_size or not current_chunk_items:
+                current_chunk_items.append(item)
+            elif is_same_list_group and len(test_text) <= SAFE_LIST_LIMIT:
+                # Gộp vượt ngưỡng thông thường vì cùng nhóm danh sách và dưới giới hạn an toàn
+                current_chunk_items.append(item)
             else:
                 # Xuất bản chunk hiện tại
-                if current_chunk_parts:
-                    chunk_text = context_prefix + "\n" + "\n\n".join(current_chunk_parts)
-                    child_chunks.append(chunk_text)
+                chunk_content = get_chunk_text(current_chunk_items)
+                child_chunks.append(context_prefix + "\n" + chunk_content)
                 # Bắt đầu chunk mới
-                current_chunk_parts = [block]
-                current_len = block_len
+                current_chunk_items = [item]
                 
-        if current_chunk_parts:
-            chunk_text = context_prefix + "\n" + "\n\n".join(current_chunk_parts)
-            child_chunks.append(chunk_text)
+        if current_chunk_items:
+            chunk_content = get_chunk_text(current_chunk_items)
+            child_chunks.append(context_prefix + "\n" + chunk_content)
             
         return child_chunks
 
@@ -829,6 +956,7 @@ class ChunkingService:
         current_dieu = ""
         
         current_section_text = []
+        pending_lines = []
         
         def save_current_section():
             if current_section_text:
@@ -860,19 +988,28 @@ class ChunkingService:
                 current_chuong = title
                 current_muc = ""
                 current_dieu = ""
-                current_section_text.append(line)
+                pending_lines.append(line)
             elif match_muc:
                 save_current_section()
                 title = (match_muc.group(1) + match_muc.group(2)).replace("**", "").strip()
                 current_muc = title
                 current_dieu = ""
-                current_section_text.append(line)
+                pending_lines.append(line)
             elif match_dieu:
                 save_current_section()
                 title = (match_dieu.group(1) + match_dieu.group(2)).replace("**", "").strip()
                 current_dieu = title
+                # Khi bắt đầu Điều mới, đưa các tiêu đề Chương/Mục đang chờ vào đầu
+                if pending_lines:
+                    current_section_text.extend(pending_lines)
+                    pending_lines = []
                 current_section_text.append(line)
             else:
+                if not current_section_text and pending_lines:
+                    # Nếu có dòng thường nằm ngoài Điều nhưng nằm trong Chương/Mục mới,
+                    # ta đưa pending_lines vào và bắt đầu một section
+                    current_section_text.extend(pending_lines)
+                    pending_lines = []
                 current_section_text.append(line)
                 
         save_current_section()
@@ -971,163 +1108,245 @@ class ChunkingService:
         file_type: str = "general"
     ) -> List[Dict]:
         """
-        Chiến lược chunking nâng cấp: Layout-aware Section splitting + Parent-Child Chunking + Context Enrichment.
-        Bảo vệ cấu trúc bảng biểu Markdown không bị xé vụn, loại bỏ các ký tự rác vô nghĩa.
-        
-        Args:
-            text: Văn bản Markdown đầu vào.
-            filename: Tên file gốc (cho context).
-            document_summary: Tóm tắt tổng quan file từ LLM (cho context).
-            file_type: Loại tài liệu (general, legal, financial, faq) để áp dụng dynamic size.
-            
-        Returns:
-            List[Dict]: Danh sách các chunks sẵn sàng lưu DB và embed.
+        Chiến lược chunking nâng cấp:
+        1. Sử dụng DocumentProfiler cục bộ/rule-based để phát hiện domain, language, structure_type
+        2. Sử dụng SectionParser tách thành các logical sections
+        3. Sử dụng Domain-Specific Splitter chia nhỏ từng section và bảo vệ bảng biểu/cấu trúc
+        4. Áp dụng Parent-Child Policy & giới hạn parent size cap theo domain
+        5. Sinh embedding_text và metadata đầy đủ cho các chunks
         """
-        # 1. Xác định kích thước động và separators
-        separators = self.vietnamese_separators
-        if file_type == "faq":
-            parent_size = 600
-            child_size = 0 # Không split thành child
-            overlap = 0
-        elif file_type == "legal":
-            parent_size = 1500
-            child_size = 350
-            overlap = 50
-            # Với tài liệu pháp quy, không cắt ở dấu phẩy hay khoảng trắng
-            separators = ["\n\n", "\n", ". ", "; ", "? ", "! "]
-        elif file_type == "financial":
-            parent_size = 1500  # Tăng parent size cho tài chính để giữ trọn vẹn bảng
-            child_size = 400
-            overlap = 50
-            # Với tài chính, giữ nguyên vẹn câu đến dấu phẩy
-            separators = ["\n\n", "\n", ". ", "; ", "? ", "! ", ", "]
-        else: # general
-            parent_size = 1000
-            child_size = 300
-            overlap = 50
+        if not text or not text.strip():
+            return []
 
-        # 2. Phân tách theo Section Markdown
-        sections = self._parse_markdown_sections(text)
+        # 1. Profile document
+        profile = document_profiler.profile_document(filename, text)
+        domain = profile["domain"]
+        language = profile["language"]
+        structure_type = profile["structure_type"]
+        
+        # Nếu user truyền file_type cụ thể và không phải general, ưu tiên file_type đó
+        if file_type and file_type != "general":
+            domain = file_type
+            if domain == "legal":
+                structure_type = "legal"
+            elif domain == "faq":
+                structure_type = "faq"
+
+        # Kích thước parent cap và child target theo domain
+        parent_caps = {
+            "legal": 4000,
+            "financial": 5000,
+            "academic_technical": 4000,
+            "faq": 999999, # standalone
+            "administrative": 3000,
+            "general": 3000
+        }
+        parent_cap = parent_caps.get(domain, 3000)
+
+        # 2. Parse sections
+        sections = section_parser.parse_sections(text, structure_type)
         
         processed_chunks = []
         chunk_index = 0
         
+        # Lấy splitter tương ứng
+        splitter = domain_splitters.get(domain, domain_splitters["general"])
+        
         for sec in sections:
             sec_text = sec["text"].strip()
-            if self._is_junk_chunk(sec_text):
+            if not sec_text:
                 continue
                 
             heading_path = sec["heading_path"]
+            section_type = sec["section_type"]
             
-            # Check nếu là bảng biểu hoặc section nhỏ hơn parent_size
-            if len(sec_text) <= parent_size or child_size <= 0:
-                # Đoạn này nhỏ -> lưu làm chunk độc lập
-                rich_text = self._build_enriched_text(sec_text, filename, document_summary, heading_path)
-                processed_chunks.append({
-                    "chunk_index": chunk_index,
-                    "text": sec_text,
-                    "context_enriched_text": rich_text,
-                    "heading_path": heading_path,
-                    "is_parent": True,
-                    "parent_chunk_id": None,
-                })
-                chunk_index += 1
-            else:
-                # Section quá lớn -> Áp dụng Parent-Child
-                # Đầu tiên, tạo Parent Chunk (chứa toàn bộ Section lớn)
-                parent_chunk = {
-                    "chunk_index": chunk_index,
-                    "text": sec_text,
-                    "context_enriched_text": self._build_enriched_text(sec_text, filename, document_summary, heading_path),
-                    "heading_path": heading_path,
-                    "is_parent": True,
-                    "parent_chunk_id": None,
-                }
-                parent_idx = chunk_index
-                processed_chunks.append(parent_chunk)
-                chunk_index += 1
-                
-                if file_type == "legal":
-                    # 1. Loại bỏ tiêu đề Điều trùng lặp ở đầu sec_text trước khi chia nhỏ
-                    content_to_split = sec_text
-                    lines_split = content_to_split.split('\n')
-                    if lines_split and heading_path:
-                        last_heading = heading_path[-1].strip()
-                        first_line = lines_split[0].strip()
-                        clean_first = first_line.replace("**", "").replace("*", "").strip()
-                        clean_last = last_heading.replace("**", "").replace("*", "").strip()
-                        if clean_last in clean_first or clean_first in clean_last:
-                            content_to_split = '\n'.join(lines_split[1:]).strip()
-                            
-                    # 2. Tạo context prefix
-                    if heading_path:
-                        context_prefix = f"**{' - '.join(heading_path)}**"
-                    else:
-                        context_prefix = ""
-                        
-                    # 3. Chia nhỏ theo phân cấp pháp lý
-                    child_texts = self._split_legal_hierarchy(content_to_split, context_prefix, child_size)
-                    
-                    # 4. Lưu các child chunks
-                    for ct in child_texts:
-                        if self._is_junk_chunk(ct):
-                            continue
-                        rich_child = self._build_enriched_text(ct, filename, document_summary, heading_path)
-                        processed_chunks.append({
-                            "chunk_index": chunk_index,
-                            "text": ct,
-                            "context_enriched_text": rich_child,
-                            "heading_path": heading_path,
-                            "is_parent": False,
-                            "parent_chunk_temp_idx": parent_idx,
-                        })
-                        chunk_index += 1
-                    continue
+            # Xây dựng prefix cho context
+            meta_prefix_parts = []
+            if filename:
+                base_name = os.path.basename(filename)
+                clean_name, _ = os.path.splitext(base_name)
+                meta_prefix_parts.append(clean_name)
+            if heading_path:
+                meta_prefix_parts.extend(heading_path)
+            meta_prefix = f"**{' - '.join(meta_prefix_parts)}**" if meta_prefix_parts else ""
 
-                else:
-                    # 1. Loại bỏ tiêu đề trùng lặp ở đầu sec_text trước khi chia nhỏ
-                    content_to_split = sec_text
-                    lines_split = content_to_split.split('\n')
-                    if lines_split and heading_path:
-                        last_heading = heading_path[-1].strip()
-                        first_line = lines_split[0].strip()
-                        clean_first = first_line.replace("**", "").replace("*", "").strip()
-                        clean_last = last_heading.replace("**", "").replace("*", "").strip()
-                        if clean_last in clean_first or clean_first in clean_last:
-                            content_to_split = '\n'.join(lines_split[1:]).strip()
-                            
-                    # 2. Tạo context prefix
-                    if heading_path:
-                        context_prefix = f"**{' - '.join(heading_path)}**"
-                    else:
-                        context_prefix = ""
-                        
-                    # 3. Chia nhỏ theo phân cấp general
-                    child_texts = self._split_general_hierarchy(
-                        content_to_split, 
-                        context_prefix, 
-                        child_size, 
-                        separators, 
-                        overlap,
-                        min_chunk_size=150
+            # Thẻ cờ chất lượng
+            quality_flags = []
+            if splitter._is_junk_chunk(sec_text):
+                quality_flags.append("junk_source")
+                
+            # Chia nhỏ section này
+            child_candidates = splitter.split_section(sec_text, heading_path)
+            
+            # Parent-Child Policy:
+            if domain == "faq" or (len(sec_text) <= parent_cap and len(child_candidates) <= 1):
+                # Lưu làm STANDALONE CHUNK
+                for cc in child_candidates:
+                    chunk_text = cc["text"]
+                    is_table = cc.get("is_table", False)
+                    
+                    emb_text = self._build_embedding_text(
+                        text=chunk_text,
+                        filename=filename,
+                        domain=domain,
+                        language=language,
+                        heading_path=heading_path,
+                        is_table=is_table,
+                        table_caption=cc.get("table_caption"),
+                        row_range=cc.get("row_range")
                     )
                     
-                    # 4. Lưu các child chunks
-                    for ct in child_texts:
-                        if self._is_junk_chunk(ct):
-                            continue
-                        rich_child = self._build_enriched_text(ct, filename, document_summary, heading_path)
-                        processed_chunks.append({
-                            "chunk_index": chunk_index,
-                            "text": ct,
-                            "context_enriched_text": rich_child,
-                            "heading_path": heading_path,
-                            "is_parent": False,
-                            "parent_chunk_temp_idx": parent_idx,
-                        })
-                        chunk_index += 1
+                    processed_chunks.append({
+                        "chunk_index": chunk_index,
+                        "text": chunk_text,
+                        "embedding_text": emb_text,
+                        "context_enriched_text": emb_text,  # Tương thích ngược
+                        "heading_path": heading_path,
+                        "domain": domain,
+                        "language": language,
+                        "section_type": section_type,
+                        "chunk_role": "standalone",
+                        "is_parent": False,
+                        "parent_chunk_id": None,
+                        "is_table": is_table,
+                        "table_caption": cc.get("table_caption"),
+                        "table_header": cc.get("table_header", []),
+                        "row_range": cc.get("row_range"),
+                        "quality_flags": quality_flags
+                    })
+                    chunk_index += 1
+            else:
+                # Dùng cấu trúc PARENT-CHILD
+                # Chia nhỏ sec_text thành các parent groups để không vượt quá parent_cap
+                parent_groups = []
+                current_parent_parts = []
+                current_parent_len = 0
+                
+                # Gom các child chunks vào các parent groups một cách cân bằng
+                child_to_parent_map = {} # map index child candidate -> index parent group
+                
+                for idx, cc in enumerate(child_candidates):
+                    cc_len = len(cc["text"])
+                    if current_parent_len + cc_len > parent_cap and current_parent_parts:
+                        # Đóng parent group hiện tại
+                        parent_groups.append("\n\n".join(current_parent_parts))
+                        current_parent_parts = [cc["text"]]
+                        current_parent_len = cc_len
+                    else:
+                        current_parent_parts.append(cc["text"])
+                        current_parent_len += cc_len + 2
+                    child_to_parent_map[idx] = len(parent_groups)
+                    
+                if current_parent_parts:
+                    parent_groups.append("\n\n".join(current_parent_parts))
+                    
+                # Thêm parent groups vào processed_chunks trước
+                parent_temp_ids = []
+                for p_idx, p_text in enumerate(parent_groups):
+                    p_prefix = meta_prefix + f" (Part {p_idx+1})" if len(parent_groups) > 1 and meta_prefix else meta_prefix
+                    p_full_text = p_prefix + "\n" + p_text if p_prefix else p_text
+                    
+                    # Capped parent
+                    p_full_text = p_full_text[:parent_cap + 200]
+                    
+                    p_emb_text = self._build_embedding_text(
+                        text=p_full_text,
+                        filename=filename,
+                        domain=domain,
+                        language=language,
+                        heading_path=heading_path,
+                        is_table=False
+                    )
+                    
+                    parent_chunk = {
+                        "chunk_index": chunk_index,
+                        "text": p_full_text,
+                        "embedding_text": p_emb_text,
+                        "context_enriched_text": p_emb_text,
+                        "heading_path": heading_path,
+                        "domain": domain,
+                        "language": language,
+                        "section_type": section_type,
+                        "chunk_role": "parent",
+                        "is_parent": True,
+                        "parent_chunk_id": None,
+                        "is_table": False,
+                        "table_caption": None,
+                        "table_header": [],
+                        "row_range": None,
+                        "quality_flags": quality_flags
+                    }
+                    processed_chunks.append(parent_chunk)
+                    parent_temp_ids.append(chunk_index)
+                    chunk_index += 1
+                    
+                # Thêm các child chunks
+                for idx, cc in enumerate(child_candidates):
+                    chunk_text = cc["text"]
+                    is_table = cc.get("is_table", False)
+                    parent_group_idx = child_to_parent_map[idx]
+                    parent_temp_idx = parent_temp_ids[parent_group_idx]
+                    
+                    emb_text = self._build_embedding_text(
+                        text=chunk_text,
+                        filename=filename,
+                        domain=domain,
+                        language=language,
+                        heading_path=heading_path,
+                        is_table=is_table,
+                        table_caption=cc.get("table_caption"),
+                        row_range=cc.get("row_range")
+                    )
+                    
+                    processed_chunks.append({
+                        "chunk_index": chunk_index,
+                        "text": chunk_text,
+                        "embedding_text": emb_text,
+                        "context_enriched_text": emb_text,
+                        "heading_path": heading_path,
+                        "domain": domain,
+                        "language": language,
+                        "section_type": section_type,
+                        "chunk_role": "child",
+                        "is_parent": False,
+                        "parent_chunk_temp_idx": parent_temp_idx, # temporary link
+                        "is_table": is_table,
+                        "table_caption": cc.get("table_caption"),
+                        "table_header": cc.get("table_header", []),
+                        "row_range": cc.get("row_range"),
+                        "quality_flags": quality_flags
+                    })
+                    chunk_index += 1
                     
         return processed_chunks
+
+    def _build_embedding_text(
+        self,
+        text: str,
+        filename: str,
+        domain: str,
+        language: str,
+        heading_path: List[str],
+        is_table: bool,
+        table_caption: Optional[str] = None,
+        row_range: Optional[List[int]] = None
+    ) -> str:
+        """Sinh embedding_text dựa trên metadata cục bộ mà không gọi LLM"""
+        meta_parts = []
+        if filename:
+            meta_parts.append(f"Document: {os.path.basename(filename)}")
+        meta_parts.append(f"Domain: {domain}")
+        meta_parts.append(f"Language: {language}")
+        if heading_path:
+            meta_parts.append(f"Section: {' > '.join(heading_path)}")
+        if is_table:
+            if table_caption:
+                meta_parts.append(f"Table: {table_caption}")
+            if row_range:
+                meta_parts.append(f"Rows: {row_range[0]}-{row_range[1]}")
+                
+        prefix = "\n".join(meta_parts) + "\n\n" if meta_parts else ""
+        return prefix + text
 
     def _build_enriched_text(self, text: str, filename: str, summary: str, heading_path: List[str]) -> str:
         """Helper để build text có chứa Rich Context"""

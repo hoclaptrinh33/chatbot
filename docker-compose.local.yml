@@ -96,6 +96,7 @@ services:
       - DEBUG=True
       - CUDA_VISIBLE_DEVICES=-1
       - HF_HOME=/app/models_cache
+      - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
     volumes:
       - core_uploads:/app/uploads
       - core_faiss:/app/faiss_indexes
@@ -135,6 +136,7 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - CUDA_VISIBLE_DEVICES=-1
       - HF_HOME=/app/models_cache
+      - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
     volumes:
       - core_uploads:/app/uploads
       - core_faiss:/app/faiss_indexes

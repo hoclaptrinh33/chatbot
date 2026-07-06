@@ -95,6 +95,7 @@ services:
       - JWT_ALGORITHM=HS256
       - DEBUG=True
       - HF_HOME=/app/models_cache
+      - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
     deploy:
       resources:
         reservations:
@@ -140,6 +141,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_URL=http://qdrant:6333
       - HF_HOME=/app/models_cache
+      - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
     deploy:
       resources:
         reservations:

@@ -564,6 +564,7 @@ class ChatService:
                     "vector_id": cid,
                     "score": score,
                     "text": chunk_data.get("text"),
+                    "embedding_text": chunk_data.get("embedding_text") or chunk_data.get("context_enriched_text"),
                     "file_id": file_id,
                     "file_name": file_name,  # ✨ NEW: Tên file cụ thể
                     "dataset_file_id": chunk_data.get("dataset_file_id"),

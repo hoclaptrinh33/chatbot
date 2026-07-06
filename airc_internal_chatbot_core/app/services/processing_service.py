@@ -49,7 +49,7 @@ class ProcessingService:
                 # Cấu hình pipeline options để bóc tách hình ảnh và cấu trúc bảng
                 pipeline_options = PdfPipelineOptions()
                 pipeline_options.images_scale = 1.0  # Tối ưu hóa chất lượng ảnh và dung lượng ổ đĩa
-                pipeline_options.generate_picture_images = True  # Bật trích xuất hình vẽ/ảnh
+                pipeline_options.generate_picture_images = False  # Tắt trích xuất hình vẽ/ảnh để nhẹ hơn
                 pipeline_options.generate_page_images = False    # Tắt xuất toàn bộ trang dưới dạng ảnh (không cần thiết)
                 
                 # Kích hoạt nhận diện cấu trúc bảng nâng cao
@@ -57,7 +57,7 @@ class ProcessingService:
                 pipeline_options.do_table_structure = True
                 pipeline_options.table_structure_options.do_cell_matching = True
                 
-                # Sử dụng EasyOCR song ngữ Tiếng Việt & Tiếng Anh để bóc tách PDF Scan
+                # Sử dụng EasyOCR song ngữ Tiếng Việt & Tiếng Anh khi cần fallback OCR
                 pipeline_options.ocr_options = EasyOcrOptions(lang=["vi", "en"])
                 
                 self._doc_converter = DocumentConverter(
@@ -228,7 +228,11 @@ class ProcessingService:
                     "dataset_file_id": dataset_file_id,
                     "dataset_id": dataset_id,
                     "is_child": not chunks_to_embed[i]["is_parent"],
-                    "parent_chunk_id": chunks_to_embed[i]["parent_chunk_id"]
+                    "parent_chunk_id": chunks_to_embed[i]["parent_chunk_id"],
+                    "chunk_role": chunks_to_embed[i].get("chunk_role", "standalone"),
+                    "domain": chunks_to_embed[i].get("domain", "general"),
+                    "language": chunks_to_embed[i].get("language", "vi"),
+                    "is_table": chunks_to_embed[i].get("is_table", False)
                 }
                 for i in range(len(chunks_to_embed))
             ]

@@ -1,0 +1,86 @@
+{
+  "summary": {
+    "total_cases": 6,
+    "hit_ratio_at_5": 1.0,
+    "mrr_avg": 0.9167
+  },
+  "quality_metrics": {
+    "total_chunks": 9,
+    "parent_chunks": 1,
+    "child_chunks": 2,
+    "standalone_chunks": 6,
+    "max_parent_chars": 449,
+    "junk_chunks_flagged": 0,
+    "table_chunks_with_headers": 1,
+    "errors": []
+  },
+  "case_results": [
+    {
+      "doc_id": "legal_vietnamese_01",
+      "question": "Phạm vi điều chỉnh của Quyết định 123 là gì?",
+      "hit_at_5": true,
+      "mrr": 1.0,
+      "expected_terms": [
+        "phạm vi điều chỉnh",
+        "tiếp nhận",
+        "kiến nghị",
+        "người dân"
+      ]
+    },
+    {
+      "doc_id": "legal_vietnamese_01",
+      "question": "Đối tượng nào phải tuân theo quyết định này?",
+      "hit_at_5": true,
+      "mrr": 1.0,
+      "expected_terms": [
+        "đối tượng áp dụng",
+        "cơ quan hành chính",
+        "cán bộ công chức"
+      ]
+    },
+    {
+      "doc_id": "financial_english_01",
+      "question": "What was the total revenue in Quarter 4?",
+      "hit_at_5": true,
+      "mrr": 1.0,
+      "expected_terms": [
+        "revenue",
+        "189,815",
+        "quarter 4"
+      ]
+    },
+    {
+      "doc_id": "financial_english_01",
+      "question": "How much was the tax payable in Q4?",
+      "hit_at_5": true,
+      "mrr": 0.5,
+      "expected_terms": [
+        "tax payable",
+        "18,915",
+        "quarter 4"
+      ]
+    },
+    {
+      "doc_id": "faq_mixed_01",
+      "question": "Cách thay đổi mật khẩu tài khoản thế nào?",
+      "hit_at_5": true,
+      "mrr": 1.0,
+      "expected_terms": [
+        "đổi mật khẩu",
+        "cài đặt",
+        "otp"
+      ]
+    },
+    {
+      "doc_id": "faq_mixed_01",
+      "question": "Forgot password how to reset?",
+      "hit_at_5": true,
+      "mrr": 1.0,
+      "expected_terms": [
+        "forgot password",
+        "reset",
+        "email"
+      ]
+    }
+  ]
+}

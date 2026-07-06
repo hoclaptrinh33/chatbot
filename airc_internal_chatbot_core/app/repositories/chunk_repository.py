@@ -57,11 +57,21 @@ class ChunkRepository(BaseRepository):
                     "file_id": file_id,
                     "chunk_index": chunk.get("chunk_index"),
                     "text": chunk.get("text"),
+                    "embedding_text": chunk.get("embedding_text"),
                     "context_enriched_text": chunk.get("context_enriched_text"),
                     "heading_path": chunk.get("heading_path", []),
                     "is_parent": chunk.get("is_parent", False),
                     "parent_chunk_id": chunk.get("parent_chunk_id"),
-                    "vector_id": chunk.get("vector_id")
+                    "vector_id": chunk.get("vector_id"),
+                    "domain": chunk.get("domain", "general"),
+                    "language": chunk.get("language", "vi"),
+                    "section_type": chunk.get("section_type", "plain"),
+                    "chunk_role": chunk.get("chunk_role", "standalone"),
+                    "is_table": chunk.get("is_table", False),
+                    "table_caption": chunk.get("table_caption"),
+                    "table_header": chunk.get("table_header", []),
+                    "row_range": chunk.get("row_range"),
+                    "quality_flags": chunk.get("quality_flags", [])
                 }
                 docs.append(doc)
         else:
@@ -73,11 +83,21 @@ class ChunkRepository(BaseRepository):
                     "file_id": file_id,
                     "chunk_index": i,
                     "text": text,
+                    "embedding_text": text,
                     "context_enriched_text": text,
                     "heading_path": [],
                     "is_parent": False,
                     "parent_chunk_id": None,
-                    "vector_id": None 
+                    "vector_id": None,
+                    "domain": "general",
+                    "language": "vi",
+                    "section_type": "plain",
+                    "chunk_role": "standalone",
+                    "is_table": False,
+                    "table_caption": None,
+                    "table_header": [],
+                    "row_range": None,
+                    "quality_flags": []
                 }
                 docs.append(doc)
             
@@ -121,11 +141,21 @@ class ChunkRepository(BaseRepository):
                 "file_id": file_id,
                 "chunk_index": p_chunk["chunk_index"],
                 "text": p_chunk["text"],
+                "embedding_text": p_chunk.get("embedding_text"),
                 "context_enriched_text": p_chunk.get("context_enriched_text", p_chunk["text"]),
                 "heading_path": p_chunk.get("heading_path", []),
                 "is_parent": True,
                 "parent_chunk_id": None,
-                "vector_id": None
+                "vector_id": None,
+                "domain": p_chunk.get("domain", "general"),
+                "language": p_chunk.get("language", "vi"),
+                "section_type": p_chunk.get("section_type", "plain"),
+                "chunk_role": p_chunk.get("chunk_role", "parent"),
+                "is_table": p_chunk.get("is_table", False),
+                "table_caption": p_chunk.get("table_caption"),
+                "table_header": p_chunk.get("table_header", []),
+                "row_range": p_chunk.get("row_range"),
+                "quality_flags": p_chunk.get("quality_flags", [])
             }
             inserted_id = await self.insert_one(doc)
             p_chunk["id"] = inserted_id
@@ -145,11 +175,21 @@ class ChunkRepository(BaseRepository):
                 "file_id": file_id,
                 "chunk_index": c_chunk["chunk_index"],
                 "text": c_chunk["text"],
+                "embedding_text": c_chunk.get("embedding_text"),
                 "context_enriched_text": c_chunk.get("context_enriched_text", c_chunk["text"]),
                 "heading_path": c_chunk.get("heading_path", []),
                 "is_parent": False,
                 "parent_chunk_id": p_id,
-                "vector_id": None
+                "vector_id": None,
+                "domain": c_chunk.get("domain", "general"),
+                "language": c_chunk.get("language", "vi"),
+                "section_type": c_chunk.get("section_type", "plain"),
+                "chunk_role": c_chunk.get("chunk_role", "child" if p_id else "standalone"),
+                "is_table": c_chunk.get("is_table", False),
+                "table_caption": c_chunk.get("table_caption"),
+                "table_header": c_chunk.get("table_header", []),
+                "row_range": c_chunk.get("row_range"),
+                "quality_flags": c_chunk.get("quality_flags", [])
             }
             docs_to_insert.append((c_chunk, doc))
             
