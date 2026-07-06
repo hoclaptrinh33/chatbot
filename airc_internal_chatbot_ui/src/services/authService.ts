@@ -83,9 +83,14 @@ class AuthService implements IAuthService {
     /**
      * Lay danh sach tat ca users (Admin only)
      */
-    public async getAllUsers(token: string): Promise<User[]> {
+    public async getAllUsers(token: string, role?: string, department?: string): Promise<User[]> {
+        const params: Record<string, string> = {};
+        if (role) params.role = role;
+        if (department) params.department = department;
+
         const response = await this.api.get<User[]>('/users', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            params
         });
         return response.data;
     }

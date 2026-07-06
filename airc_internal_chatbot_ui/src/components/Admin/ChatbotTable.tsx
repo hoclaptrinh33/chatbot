@@ -14,7 +14,7 @@ interface ChatbotTableProps {
 const ChatbotTable: React.FC<ChatbotTableProps> = ({ chatbots, loading, onEdit, onDelete }) => {
     const columns: ColumnsType<Chatbot> = [
         {
-            title: 'Name',
+            title: 'Tên',
             dataIndex: 'name',
             key: 'name',
             render: (text, record) => (
@@ -25,24 +25,31 @@ const ChatbotTable: React.FC<ChatbotTableProps> = ({ chatbots, loading, onEdit, 
             ),
         },
         {
-            title: 'Description',
+            title: 'Mô tả',
             dataIndex: 'description',
             key: 'description',
             ellipsis: true,
         },
         {
-            title: 'Visibility',
+            title: 'Chế độ hiển thị',
             dataIndex: 'visibility',
             key: 'visibility',
             render: (visibility: string) => {
                 let color = 'default';
-                if (visibility === 'public') color = 'green';
-                if (visibility === 'private') color = 'orange';
-                return <Tag color={color}>{visibility.toUpperCase()}</Tag>;
+                let text = visibility.toUpperCase();
+                if (visibility === 'public') {
+                    color = 'green';
+                    text = 'CÔNG KHAI';
+                }
+                if (visibility === 'private') {
+                    color = 'orange';
+                    text = 'RIÊNG TƯ';
+                }
+                return <Tag color={color}>{text}</Tag>;
             },
         },
         {
-            title: 'Allowed Roles',
+            title: 'Vai trò được phép',
             dataIndex: 'allowed_roles',
             key: 'allowed_roles',
             render: (roles: string[]) => (
@@ -56,42 +63,42 @@ const ChatbotTable: React.FC<ChatbotTableProps> = ({ chatbots, loading, onEdit, 
             ),
         },
         {
-            title: 'Datasets',
+            title: 'Bộ dữ liệu',
             dataIndex: 'dataset_ids',
             key: 'dataset_ids',
             render: (ids: string[] | null | undefined) => (
-                <Tag>{(ids || []).length} Datasets</Tag>
+                <Tag>{(ids || []).length} Bộ dữ liệu</Tag>
             ),
         },
         {
-            title: 'Status',
+            title: 'Trạng thái',
             dataIndex: 'is_active',
             key: 'is_active',
             render: (isActive: boolean) => (
                 <Tag color={isActive ? 'success' : 'error'}>
-                    {isActive ? 'ACTIVE' : 'INACTIVE'}
+                    {isActive ? 'HOẠT ĐỘNG' : 'TẠM NGƯNG'}
                 </Tag>
             )
         },
         {
-            title: 'Actions',
+            title: 'Thao tác',
             key: 'actions',
             render: (_, record) => (
                 <Space size="middle">
-                    <Tooltip title="Edit Chatbot">
+                    <Tooltip title="Chỉnh sửa Trợ lý ảo">
                         <Button
                             type="text"
                             icon={<EditOutlined className="text-blue-500" />}
                             onClick={() => onEdit(record)}
                         />
                     </Tooltip>
-                    <Tooltip title="Delete Chatbot">
+                    <Tooltip title="Xóa Trợ lý ảo">
                         <Popconfirm
-                            title="Delete Chatbot"
-                            description="Are you sure you want to delete this chatbot?"
+                            title="Xóa Trợ lý ảo"
+                            description="Bạn có chắc chắn muốn xóa trợ lý ảo này không?"
                             onConfirm={() => onDelete(record)}
-                            okText="Yes"
-                            cancelText="No"
+                            okText="Đồng ý"
+                            cancelText="Hủy"
                             okButtonProps={{ danger: true }}
                         >
                             <Button

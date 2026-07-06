@@ -24,14 +24,14 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
     const [search, setSearch] = useState('');
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
     const [isAddFileModalOpen, setIsAddFileModalOpen] = useState(false);
-    const [availableFiles, setAvailableFiles] = useState<any[]>([]); // All files for selection
+    const [availableFiles, setAvailableFiles] = useState<any[]>([]); // Tất cả các file có sẵn trong thư viện
     const [selectedFilesToAdd, setSelectedFilesToAdd] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
 
     // File Input Ref
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Chunk Preview
+    // Xem trước Chunks
     const [chunkPreviewVisible, setChunkPreviewVisible] = useState(false);
     const [chunkItems, setChunkItems] = useState<ChunkItem[]>([]);
     const [previewTitle, setPreviewTitle] = useState('');
@@ -45,31 +45,34 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
         console.log(`[KnowledgeBase] Toggling file ${file.id} to ${checked}`);
         try {
             await datasetService.toggleDatasetFile(datasetId, file.id, checked);
-
-            // Optimistic update should be done via refetch or parent update if local state not available
-            // Since we receive 'files' as props, we trigger fetchFiles()
-            // But to make it instant, we might want to update a local copy if we had one.
-            // For now, rely on fetchFiles but log success.
             console.log('[KnowledgeBase] Toggle success, refreshing...');
             fetchFiles();
-            notification.success({ message: `File ${checked ? 'enabled' : 'disabled'}` });
+            notification.success({ 
+                message: `Đã ${checked ? 'kích hoạt' : 'vô hiệu hóa'} tài liệu thành công` 
+            });
         } catch (error) {
             console.error('[KnowledgeBase] Toggle failed:', error);
-            notification.error({ message: 'Toggle failed. Check console.' });
+            notification.error({ 
+                message: 'Thay đổi trạng thái tài liệu thất bại. Vui lòng kiểm tra console.' 
+            });
         }
     };
 
     const handleDelete = async (fileId: string) => {
         Modal.confirm({
-            title: 'Remove File',
-            content: 'Are you sure you want to remove this file from the dataset?',
+            title: 'Xóa tài liệu',
+            content: 'Bạn có chắc chắn muốn xóa tài liệu này khỏi cơ sở tri thức?',
+            okText: 'Xóa',
+            cancelText: 'Hủy',
             okType: 'danger',
             onOk: async () => {
                 try {
                     await datasetService.removeFileFromDataset(datasetId, fileId);
                     fetchFiles();
+                    notification.success({ message: 'Đã xóa tài liệu khỏi cơ sở tri thức' });
                 } catch (error) {
                     console.error('Delete failed', error);
+                    notification.error({ message: 'Xóa tài liệu thất bại' });
                 }
             }
         });
@@ -79,8 +82,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
         if (selectedRowKeys.length === 0) return;
 
         Modal.confirm({
-            title: 'Remove Selected Files',
-            content: `Are you sure you want to remove ${selectedRowKeys.length} files from the dataset?`,
+            title: 'Xóa các tài liệu đã chọn',
+            content: `Bạn có chắc chắn muốn xóa ${selectedRowKeys.length} tài liệu đã chọn khỏi cơ sở tri thức?`,
+            okText: 'Xóa',
+            cancelText: 'Hủy',
             okType: 'danger',
             onOk: async () => {
                 try {
@@ -89,10 +94,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                     );
                     setSelectedRowKeys([]);
                     fetchFiles();
-                    notification.success({ message: 'Files removed successfully' });
+                    notification.success({ message: 'Đã xóa các tài liệu thành công' });
                 } catch (error) {
                     console.error('Bulk delete failed', error);
-                    notification.error({ message: 'Failed to remove some files' });
+                    notification.error({ message: 'Xóa một số tài liệu thất bại' });
                 }
             }
         });
@@ -122,8 +127,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
             setIsAddFileModalOpen(false);
             setSelectedFilesToAdd([]);
             fetchFiles();
+            notification.success({ message: 'Đã thêm tài liệu vào cơ sở tri thức thành công' });
         } catch (error) {
             console.error('Add files failed', error);
+            notification.error({ message: 'Thêm tài liệu thất bại' });
         }
     };
 
@@ -134,51 +141,69 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const selectedFiles = e.target.files;
+        if (!selectedFiles || selectedFiles.length === 0) return;
 
         setUploading(true);
-        let uploaded = null;
+        const uploadedFiles: any[] = [];
+        const failedFiles: string[] = [];
 
-        try {
-            // 1. Upload file
-            uploaded = await fileService.uploadFile(file);
-            notification.success({ message: 'File uploaded successfully' });
-        } catch (err) {
-            console.error('Upload failed', err);
-            notification.error({ message: 'Upload failed' });
+        // Upload song song các file được chọn lên thư viện
+        const uploadPromises = Array.from(selectedFiles).map(async (file) => {
+            try {
+                const uploaded = await fileService.uploadFile(file);
+                uploadedFiles.push(uploaded);
+            } catch (err) {
+                console.error(`Upload failed for ${file.name}`, err);
+                failedFiles.push(file.name);
+            }
+        });
+
+        await Promise.all(uploadPromises);
+
+        if (uploadedFiles.length > 0) {
+            notification.success({ 
+                message: `Tải lên thành công ${uploadedFiles.length} tệp tin`,
+                description: `Tệp đã tải: ${uploadedFiles.map(f => f.name).join(', ')}`
+            });
+        }
+        if (failedFiles.length > 0) {
+            notification.error({ 
+                message: `Tải lên thất bại ${failedFiles.length} tệp tin`,
+                description: `Chi tiết tệp lỗi: ${failedFiles.join(', ')}`
+            });
+        }
+        
+        if (uploadedFiles.length === 0) {
             setUploading(false);
             e.target.value = '';
             return;
         }
 
         try {
-            // 2. Refresh list and auto-select
+            // Cập nhật lại danh sách files sẵn có để chọn thêm vào dataset
             const allFiles = await fileService.getFiles();
             console.log('[KnowledgeBase] Files after upload refresh:', allFiles);
-            console.log('[KnowledgeBase] Uploaded file:', uploaded);
 
-            // Safe filter
             const existingIds = new Set(files.map(f => f.file_id || ''));
-            console.log('[KnowledgeBase] Existing IDs after upload:', Array.from(existingIds));
-
             const available = (allFiles || []).filter((f: any) => f && f.id && !existingIds.has(f.id));
-            console.log('[KnowledgeBase] Available files after upload filter:', available);
 
             setAvailableFiles(available);
 
-            // Auto select the new file
-            if (uploaded && uploaded.id) {
-                console.log('[KnowledgeBase] Auto-selecting uploaded file:', uploaded.id);
-                setSelectedFilesToAdd(prev => [...prev, uploaded!.id]);
+            // Tự động chọn (tick chọn) các file vừa tải lên thành công để người dùng chỉ cần nhấn Add Selected
+            const newIds = uploadedFiles.filter(f => f && f.id).map(f => f.id);
+            if (newIds.length > 0) {
+                setSelectedFilesToAdd(prev => {
+                    const uniqueSet = new Set([...prev, ...newIds]);
+                    return Array.from(uniqueSet);
+                });
             }
         } catch (err) {
             console.error('Refresh list failed', err);
-            // Non-critical error
-            notification.warning({ message: 'File uploaded but list refresh failed' });
+            notification.warning({ message: 'Tải lên hoàn tất nhưng không thể làm mới danh sách tệp tin' });
         } finally {
             setUploading(false);
-            e.target.value = ''; // Reset input
+            e.target.value = ''; // Reset input để có thể chọn lại cùng file đó nếu cần
         }
     };
 
@@ -188,18 +213,15 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
             const chunks = await datasetService.getChunks(datasetId, file.id);
             console.log('[KnowledgeBase] Chunks received:', chunks.length);
             setChunkItems(chunks as any[]);
-            setPreviewTitle(`Chunks - ${file.file_name || 'File'}`);
+            setPreviewTitle(`Danh sách phân mảnh (Chunks) - ${file.file_name || 'Tài liệu'}`);
             setChunkPreviewVisible(true);
-            console.log('[KnowledgeBase] Chunk modal should now be visible');
         } catch (error) {
             console.error('Get chunks failed', error);
-            notification.error({ message: 'Failed to load chunks' });
+            notification.error({ message: 'Tải danh sách phân mảnh thất bại' });
         }
     };
 
     const handlePreviewFile = (file: DatasetFile | { id: string }) => {
-        // Open file preview in new tab using API URL
-        // Support both DatasetFile (file_id) and File (id) objects
         const fileId = 'file_id' in file ? file.file_id : file.id;
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
         const previewUrl = `${baseUrl}/files/${fileId}/view`;
@@ -208,30 +230,30 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
 
     const columns = [
         {
-            title: 'Name',
+            title: 'Tên tài liệu',
             dataIndex: 'file_name',
             key: 'file_name',
-            render: (text: string) => <span className="font-medium">{text || 'Unknown'}</span>
+            render: (text: string) => <span className="font-medium">{text || 'Không rõ'}</span>
         },
         {
-            title: 'Upload Date',
+            title: 'Ngày tải lên',
             dataIndex: 'created_at',
             key: 'created_at',
             render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm')
         },
         {
-            title: 'Size',
+            title: 'Kích thước',
             dataIndex: 'file_size',
             key: 'file_size',
             render: (size: number) => ((size || 0) / 1024).toFixed(2) + ' KB'
         },
         {
-            title: 'Chunks',
+            title: 'Số Chunks',
             dataIndex: 'chunk_count',
             key: 'chunk_count',
         },
         {
-            title: 'Enable',
+            title: 'Kích hoạt',
             key: 'enable',
             render: (_: any, record: DatasetFile) => (
                 <Switch
@@ -242,24 +264,39 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
             )
         },
         {
-            title: 'Status',
+            title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
-            render: (status: string) => (
-                <Tag color={status === 'done' || status === 'Ready' ? 'blue' : status === 'error' ? 'red' : 'orange'}>
-                    {status ? status.toUpperCase() : 'UNKNOWN'}
-                </Tag>
-            )
+            render: (status: string) => {
+                let color = 'orange';
+                let text = 'ĐANG XỬ LÝ';
+                if (status === 'done' || status === 'Ready') {
+                    color = 'blue';
+                    text = 'SẴN SÀNG';
+                } else if (status === 'error') {
+                    color = 'red';
+                    text = 'LỖI';
+                } else if (status === 'chunking') {
+                    text = 'ĐANG PHÂN MẢNH';
+                } else if (status === 'embedding') {
+                    text = 'ĐANG NHÚNG VECTOR';
+                }
+                return (
+                    <Tag color={color}>
+                        {text}
+                    </Tag>
+                );
+            }
         },
         {
-            title: 'Action',
+            title: 'Hành động',
             key: 'action',
             render: (_: any, record: DatasetFile) => (
                 <div className="flex gap-2">
-                    <Tooltip title="View Chunks">
+                    <Tooltip title="Xem các phân mảnh">
                         <Button icon={<EyeOutlined />} size="small" onClick={() => handleViewChunks(record)} />
                     </Tooltip>
-                    <Tooltip title="Preview/Download File">
+                    <Tooltip title="Xem trước/Tải xuống">
                         <Button
                             icon={<DownloadOutlined />}
                             size="small"
@@ -267,7 +304,7 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                             onClick={() => handlePreviewFile(record)}
                         />
                     </Tooltip>
-                    <Tooltip title="Delete">
+                    <Tooltip title="Xóa">
                         <Button icon={<DeleteOutlined />} danger size="small" onClick={() => handleDelete(record.id)} />
                     </Tooltip>
                 </div>
@@ -285,7 +322,7 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
             <div className="flex-1 bg-white rounded-lg shadow-sm p-6 flex flex-col overflow-hidden" style={{ maxHeight: 'calc(100vh - 200px)' }}>
                 <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-shrink-0">
                     <Input
-                        placeholder="Search files..."
+                        placeholder="Tìm kiếm tài liệu..."
                         prefix={<SearchOutlined />}
                         className="max-w-xs"
                         value={search}
@@ -293,10 +330,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                     />
                     <div className="flex gap-2">
                         {selectedRowKeys.length > 0 && (
-                            <Button danger onClick={handleBulkDelete}>Delete Selected ({selectedRowKeys.length})</Button>
+                            <Button danger onClick={handleBulkDelete}>Xóa mục đã chọn ({selectedRowKeys.length})</Button>
                         )}
                         <Button type="primary" icon={<PlusOutlined />} onClick={handleAddFilesOpen} className="bg-black text-white">
-                            Add File
+                            Thêm tài liệu
                         </Button>
                     </div>
                 </div>
@@ -315,24 +352,26 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                 </div>
             </div>
 
-            {/* Add File Modal */}
+            {/* Modal Thêm tài liệu */}
             <Modal
-                title="Select Files to Add"
+                title="Chọn tài liệu muốn thêm vào Dataset"
                 open={isAddFileModalOpen}
                 onCancel={() => setIsAddFileModalOpen(false)}
                 onOk={handleAddFilesSubmit}
                 width={800}
-                okText="Add Selected"
+                okText="Thêm tài liệu đã chọn"
+                cancelText="Hủy"
                 okButtonProps={{ disabled: selectedFilesToAdd.length === 0, className: 'bg-black' }}
             >
                 <div className="flex justify-between items-center mb-4">
-                    <p className="text-gray-500">Select files from the library or upload new ones.</p>
+                    <p className="text-gray-500">Chọn tài liệu sẵn có trong thư viện hoặc tải lên tệp mới từ máy tính.</p>
                     <div>
                         <input
                             type="file"
                             ref={fileInputRef}
                             style={{ display: 'none' }}
                             onChange={handleFileChange}
+                            multiple
                         />
                         <Button
                             icon={uploading ? <LoadingOutlined /> : <PlusOutlined />}
@@ -340,7 +379,7 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                             disabled={uploading}
                             className="bg-black text-white hover:bg-gray-800"
                         >
-                            {uploading ? 'Uploading...' : 'Upload New File'}
+                            {uploading ? 'Đang tải lên...' : 'Tải lên tệp mới'}
                         </Button>
                     </div>
                 </div>
@@ -357,30 +396,35 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                         }}
                         columns={[
                             {
-                                title: 'Name',
+                                title: 'Tên tệp',
                                 dataIndex: 'name',
                                 key: 'name'
                             },
                             {
-                                title: 'Size',
+                                title: 'Kích thước',
                                 dataIndex: 'size',
                                 key: 'size',
-                                render: (s: number) => s ? ((s / 1024).toFixed(2) + ' KB') : 'N/A'
+                                render: (s: number) => s ? ((s / 1024).toFixed(2) + ' KB') : 'Không rõ'
                             },
                             {
-                                title: 'Date',
+                                title: 'Ngày tải lên',
                                 dataIndex: 'uploaded_at',
                                 key: 'uploaded_at',
-                                render: (d: string) => d ? dayjs(d).format('DD/MM/YYYY') : 'N/A'
+                                render: (d: string) => d ? dayjs(d).format('DD/MM/YYYY') : 'Không rõ'
                             },
                             {
-                                title: 'Status',
+                                title: 'Trạng thái',
                                 dataIndex: 'status',
                                 key: 'status',
-                                render: (s: string) => <Tag>{s || 'Unknown'}</Tag>
+                                render: (s: string) => {
+                                    let text = s || 'Không rõ';
+                                    if (s === 'done' || s === 'Ready') text = 'SẴN SÀNG';
+                                    else if (s === 'error') text = 'LỖI';
+                                    return <Tag>{text}</Tag>;
+                                }
                             },
                             {
-                                title: 'Action',
+                                title: 'Hành động',
                                 key: 'action',
                                 width: 80,
                                 render: (_, record: any) => (
@@ -388,10 +432,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                                         type="text"
                                         icon={<EyeOutlined />}
                                         onClick={(e) => {
-                                            e.stopPropagation(); // Prevent row selection
+                                            e.stopPropagation(); // Ngăn chọn dòng
                                             handlePreviewFile(record);
                                         }}
-                                        title="Preview File"
+                                        title="Xem trước tài liệu"
                                     />
                                 )
                             }
@@ -400,7 +444,7 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                 </div>
             </Modal>
 
-            {/* Chunk Preview Modal */}
+            {/* Modal Xem trước phân mảnh (Chunks) */}
             <Modal
                 title={previewTitle}
                 open={chunkPreviewVisible}
@@ -412,10 +456,10 @@ const KnowledgeBaseTab: React.FC<KnowledgeBaseTabProps> = ({ datasetId, files, f
                     {chunkItems.map((item, idx) => (
                         <div key={idx} className="border p-4 rounded bg-gray-50">
                             <p className="text-gray-800 text-sm whitespace-pre-wrap">{item.text}</p>
-                            <div className="mt-2 text-xs text-gray-500">Chunk {item.chunk_index}</div>
+                            <div className="mt-2 text-xs text-gray-500">Phân mảnh số {item.chunk_index}</div>
                         </div>
                     ))}
-                    {chunkItems.length === 0 && <p>No chunks found.</p>}
+                    {chunkItems.length === 0 && <p className="text-gray-500">Không tìm thấy phân mảnh nào.</p>}
                 </div>
             </Modal>
         </div>

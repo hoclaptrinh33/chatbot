@@ -27,12 +27,12 @@ const MainHeader: React.FC<HeaderProps> = ({ collapsed }) => {
     const userMenuItems: MenuProps['items'] = [
         {
             key: 'profile',
-            label: 'Thong tin tai khoan',
+            label: 'Thông tin tài khoản',
             icon: <UserOutlined />,
         },
         {
             key: 'settings',
-            label: 'Cai dat',
+            label: 'Cài đặt',
             icon: <SettingOutlined />,
         },
         {
@@ -40,7 +40,7 @@ const MainHeader: React.FC<HeaderProps> = ({ collapsed }) => {
         },
         {
             key: 'logout',
-            label: 'Dang xuat',
+            label: 'Đăng xuất',
             icon: <LogoutOutlined />,
             danger: true,
             onClick: () => logout(),

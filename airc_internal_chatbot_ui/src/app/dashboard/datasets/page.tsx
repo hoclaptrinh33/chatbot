@@ -34,7 +34,7 @@ const DatasetListPage = () => {
             setDatasets(data);
         } catch (error) {
             console.error('Failed to load datasets', error);
-            notification.error({ message: 'Failed to load datasets' });
+            notification.error({ message: 'Không thể tải danh sách bộ dữ liệu' });
         } finally {
             setLoading(false);
         }
@@ -70,13 +70,13 @@ const DatasetListPage = () => {
                 name: values.name,
                 chatbot_ids: values.chatbot_ids || []  // Send selected chatbot IDs
             });
-            notification.success({ message: 'Dataset created successfully' });
+            notification.success({ message: 'Tạo bộ dữ liệu thành công' });
             setIsCreateModalOpen(false);
             form.resetFields();
             fetchDatasets();
         } catch (error) {
             console.error('Create dataset failed', error);
-            notification.error({ message: 'Failed to create dataset' });
+            notification.error({ message: 'Tạo bộ dữ liệu thất bại' });
         }
     };
 
@@ -90,11 +90,11 @@ const DatasetListPage = () => {
             await datasetService.updateDataset(selectedDataset.id, {
                 name: values.name
             });
-            notification.success({ message: 'Dataset renamed successfully' });
+            notification.success({ message: 'Đổi tên bộ dữ liệu thành công' });
             setIsRenameModalOpen(false);
             fetchDatasets();
         } catch {
-            notification.error({ message: 'Failed to rename dataset' });
+            notification.error({ message: 'Đổi tên bộ dữ liệu thất bại' });
         }
     };
 
@@ -106,18 +106,18 @@ const DatasetListPage = () => {
      */
     const handleDeleteWrapper = async (id: string) => {
         Modal.confirm({
-            title: 'Delete Dataset',
-            content: 'Are you sure you want to delete this dataset? This action cannot be undone.',
-            okText: 'Delete',
+            title: 'Xóa bộ dữ liệu',
+            content: 'Bạn có chắc chắn muốn xóa bộ dữ liệu này? Hành động này không thể hoàn tác.',
+            okText: 'Xóa',
             okType: 'danger',
-            cancelText: 'Cancel',
+            cancelText: 'Hủy',
             onOk: async () => {
                 try {
                     await datasetService.deleteDataset(id);
-                    notification.success({ message: 'Dataset deleted' });
+                    notification.success({ message: 'Đã xóa bộ dữ liệu' });
                     fetchDatasets();
                 } catch {
-                    notification.error({ message: 'Failed to delete dataset' });
+                    notification.error({ message: 'Xóa bộ dữ liệu thất bại' });
                 }
             }
         });
@@ -127,7 +127,7 @@ const DatasetListPage = () => {
         items: [
             {
                 key: 'rename',
-                label: 'Rename',
+                label: 'Đổi tên',
                 onClick: () => {
                     setSelectedDataset(dataset);
                     renameForm.setFieldsValue({ name: dataset.name });
@@ -136,7 +136,7 @@ const DatasetListPage = () => {
             },
             {
                 key: 'delete',
-                label: 'Delete',
+                label: 'Xóa',
                 danger: true,
                 onClick: () => handleDeleteWrapper(dataset.id)
             }
@@ -151,20 +151,20 @@ const DatasetListPage = () => {
     return (
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold">Knowledge Base</h1>
+                <h1 className="text-2xl font-bold">Bộ dữ liệu (Knowledge Base)</h1>
                 <Button
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={() => setIsCreateModalOpen(true)}
                     className="bg-[#0b1220] hover:bg-gray-800"
                 >
-                    Create Dataset
+                    Tạo bộ dữ liệu
                 </Button>
             </div>
 
             <div className="mb-6">
                 <Input
-                    placeholder="Search datasets..."
+                    placeholder="Tìm kiếm bộ dữ liệu..."
                     prefix={<SearchOutlined />}
                     className="max-w-md"
                     value={search}
@@ -173,7 +173,7 @@ const DatasetListPage = () => {
             </div>
 
             {loading ? (
-                <div>Loading...</div>
+                <div>Đang tải...</div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredDatasets.map((dataset) => (
@@ -206,7 +206,7 @@ const DatasetListPage = () => {
                     ))}
                     {filteredDatasets.length === 0 && !loading && (
                         <div className="col-span-full text-center py-12 text-gray-500">
-                            No datasets found. Create one to get started.
+                            Không tìm thấy bộ dữ liệu nào. Hãy tạo mới để bắt đầu.
                         </div>
                     )}
                 </div>
@@ -214,11 +214,12 @@ const DatasetListPage = () => {
 
             {/* Create Dataset Modal - Simple form with Name + Chatbot selection only */}
             <Modal
-                title="Create Dataset"
+                title="Tạo bộ dữ liệu"
                 open={isCreateModalOpen}
                 onCancel={() => setIsCreateModalOpen(false)}
                 onOk={handleCreateWrapper}
-                okText="Create"
+                okText="Tạo"
+                cancelText="Hủy"
                 width={500}
             >
                 <Form
@@ -228,26 +229,26 @@ const DatasetListPage = () => {
                 >
                     <Form.Item
                         name="name"
-                        label="Dataset Name"
+                        label="Tên bộ dữ liệu"
                         rules={[
-                            { required: true, message: 'Please enter dataset name' },
-                            { min: 3, message: 'Name must be at least 3 characters' }
+                            { required: true, message: 'Vui lòng nhập tên bộ dữ liệu' },
+                            { min: 3, message: 'Tên phải dài ít nhất 3 ký tự' }
                         ]}
                     >
                         <Input
-                            placeholder="e.g., English Grammar Dataset"
+                            placeholder="Ví dụ: Bộ dữ liệu Ngữ pháp Tiếng Anh"
                             maxLength={200}
                         />
                     </Form.Item>
 
                     <Form.Item
                         name="chatbot_ids"
-                        label="Assign to Chatbots (Optional)"
-                        tooltip="Select chatbots that will use this dataset. Config (embedding, chunking) is managed in Chatbot settings."
+                        label="Gán cho Trợ lý ảo (Tùy chọn)"
+                        tooltip="Chọn các trợ lý ảo sẽ sử dụng bộ dữ liệu này. Cấu hình phân mảnh (chunking) và nhúng vector (embedding) sẽ được quản lý tại cài đặt của từng Trợ lý ảo."
                     >
                         <Select
                             mode="multiple"
-                            placeholder="Select chatbots to use this dataset"
+                            placeholder="Chọn trợ lý ảo sử dụng bộ dữ liệu này"
                             allowClear
                             showSearch
                             filterOption={(input, option) =>
@@ -269,14 +270,19 @@ const DatasetListPage = () => {
 
             {/* Rename Modal */}
             <Modal
-                title="Rename Dataset"
+                title="Đổi tên bộ dữ liệu"
                 open={isRenameModalOpen}
                 onCancel={() => setIsRenameModalOpen(false)}
                 onOk={handleRenameWrapper}
-                okText="Save"
+                okText="Lưu"
+                cancelText="Hủy"
             >
                 <Form form={renameForm} layout="vertical">
-                    <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+                    <Form.Item 
+                        name="name" 
+                        label="Tên bộ dữ liệu" 
+                        rules={[{ required: true, message: 'Vui lòng nhập tên bộ dữ liệu' }]}
+                    >
                         <Input />
                     </Form.Item>
                 </Form>
