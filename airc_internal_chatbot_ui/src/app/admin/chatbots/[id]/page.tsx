@@ -18,7 +18,6 @@ import {
     Tag,
     Row,
     Col,
-    AutoComplete,
     Switch
 } from 'antd';
 import {
@@ -33,6 +32,8 @@ import MainLayout from '@/components/Layout/MainLayout';
 import AuthGuard from '@/components/Auth/AuthGuard';
 import { chatbotService } from '@/services/chatbotService';
 import datasetService from '@/services/datasetService';
+import LlmModelSelect from '@/components/Admin/LlmModelSelect';
+import { llmModelsHint, pickModelForProvider, useLlmModels } from '@/hooks/useLlmModels';
 import { Chatbot, ChatbotUpdate } from '@/types/chatbot';
 import { Dataset } from '@/core/entities/Dataset';
 import { useRouter, useParams } from 'next/navigation';
@@ -58,11 +59,17 @@ export default function EditChatbotPage() {
     const [chatbot, setChatbot] = useState<Chatbot | null>(null);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [rolesWithChatbot, setRolesWithChatbot] = useState<string[]>([]);
-    const [llmModels, setLlmModels] = useState<string[]>([]);
-
     // Watch no_context_behavior for conditional rendering
     const noContextBehavior = Form.useWatch('no_context_behavior', form);
     const enableHistoryCompression = Form.useWatch('enable_history_compression', form);
+    const apiBaseUrl = Form.useWatch('api_base_url', form);
+    const apiKey = Form.useWatch('api_key', form);
+    const { models: llmModels, defaultModel, loading: loadingModels, error: modelsError } = useLlmModels({
+        apiBaseUrl,
+        apiKey,
+        enabled: !loading,
+    });
+    const providerKeyRef = React.useRef<string | undefined>(undefined);
 
     // Get ID from params (could be string or array)
     const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -77,17 +84,15 @@ export default function EditChatbotPage() {
         setLoading(true);
         try {
             // Fetch data
-            const [botData, datasetsData, roles, llmModelsData] = await Promise.all([
+            const [botData, datasetsData, roles] = await Promise.all([
                 chatbotService.getChatbot(chatbotId),
                 datasetService.getDatasets(),
                 chatbotService.getRolesWithChatbot(chatbotId), // exclude current chatbot
-                chatbotService.getLLMModels().catch(() => ({ models: [], default_model: '' }))
             ]);
 
             setChatbot(botData);
             setDatasets(datasetsData);
             setRolesWithChatbot(roles);
-            setLlmModels(llmModelsData.models);
 
             // Set form values from chatbot data
             form.setFieldsValue({
@@ -102,12 +107,13 @@ export default function EditChatbotPage() {
                 // Config - Retrieval
                 search_mode: botData.config.search_mode || 'hybrid',
                 top_k: botData.config.top_k || 5,
-                similarity_threshold: botData.config.similarity_threshold || 0.5,
+                similarity_threshold: botData.config.similarity_threshold ?? 0.25,
                 // Config - Reranking
                 reranker: botData.config.reranker || 'ms-marco-MiniLM-L-6-v2',
                 rerank_top_n: botData.config.rerank_top_n,
                 // Config - LLM
-                model: botData.config.model || llmModelsData.default_model,
+                model: botData.config.model,
+                api_base_url: botData.config.api_base_url,
                 api_key: botData.config.api_key,
                 temperature: botData.config.temperature ?? 0.7,
                 max_tokens: botData.config.max_tokens || 2048,
@@ -116,7 +122,7 @@ export default function EditChatbotPage() {
                 no_context_behavior: botData.config.no_context_behavior || 'reject',
                 no_context_message: botData.config.no_context_message,
                 // Config - History & Context Enrichment
-                enable_query_reformulation: botData.config.enable_query_reformulation ?? true,
+                enable_query_reformulation: botData.config.enable_query_reformulation ?? false,
                 enable_history_compression: botData.config.enable_history_compression ?? true,
                 history_limit: botData.config.history_limit ?? 3,
                 buffer_limit: botData.config.buffer_limit ?? 2,
@@ -130,6 +136,39 @@ export default function EditChatbotPage() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (loading || !llmModels.length) return;
+        const providerKey = `${(apiBaseUrl || '').trim()}|${(apiKey || '').trim()}`;
+        const providerChanged = providerKeyRef.current !== undefined && providerKeyRef.current !== providerKey;
+        if (providerKeyRef.current === undefined) {
+            providerKeyRef.current = providerKey;
+        } else if (providerChanged) {
+            providerKeyRef.current = providerKey;
+        }
+        const nextModel = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('model'),
+            defaultModel,
+            providerChanged,
+        );
+        const nextCompression = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('compression_model'),
+            nextModel || defaultModel,
+            providerChanged,
+        );
+        const patch: Record<string, string> = {};
+        if (nextModel && nextModel !== form.getFieldValue('model')) {
+            patch.model = nextModel;
+        }
+        if (nextCompression && nextCompression !== form.getFieldValue('compression_model')) {
+            patch.compression_model = nextCompression;
+        }
+        if (Object.keys(patch).length) {
+            form.setFieldsValue(patch);
+        }
+    }, [loading, llmModels, defaultModel, apiBaseUrl, apiKey, form]);
 
     const onFinish = async (values: any) => {
         if (!id) return;
@@ -155,6 +194,7 @@ export default function EditChatbotPage() {
                     rerank_top_n: values.rerank_top_n,
                     // LLM
                     model: values.model,
+                    api_base_url: values.api_base_url,
                     api_key: values.api_key,
                     temperature: values.temperature,
                     max_tokens: values.max_tokens,
@@ -402,7 +442,7 @@ export default function EditChatbotPage() {
                                                 name="similarity_threshold"
                                                 label={<>Ngưỡng tương đồng <Tooltip title="0.0 - 1.0"><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></>}
                                             >
-                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.3: '0.3', 0.5: '0.5', 0.7: '0.7' }} />
+                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.25: '0.25', 0.5: '0.5', 0.7: '0.7' }} />
                                             </Form.Item>
                                         </Col>
                                     </Row>
@@ -486,23 +526,42 @@ export default function EditChatbotPage() {
                                     <span style={{ fontWeight: 500 }}>Sinh câu trả lời từ AI</span>
                                 </div>
 
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                    message="Endpoint và API key phải cùng nhà cung cấp"
+                                    description="Chỉ nhập API key thì key vẫn gửi tới endpoint hệ thống — Gemini key không chạy trên Ollama và ngược lại. Muốn dùng provider khác, nhập cả Endpoint và API Key của provider đó."
+                                />
+
                                 <Form.Item
-                                    name="model"
-                                    label="AI Model"
-                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                    name="api_base_url"
+                                    label="LLM Endpoint riêng"
+                                    extra="Để trống = dùng endpoint trong Cài đặt hệ thống. Ví dụ: https://api.openai.com/v1"
+                                    rules={[
+                                        {
+                                            pattern: /^$|^https?:\/\/.+/i,
+                                            message: 'Endpoint phải bắt đầu bằng http:// hoặc https://',
+                                        },
+                                    ]}
                                 >
-                                    <AutoComplete
+                                    <Input
                                         size="large"
-                                        placeholder="Chọn từ danh sách hoặc tự nhập tên model (VD: gemma-4-26b-qat, qwen-3.6-35b...)"
-                                        options={llmModels.map(m => ({ value: m, label: m }))}
-                                        filterOption={(inputValue, option) =>
-                                            option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-                                        }
+                                        placeholder="Để trống = endpoint hệ thống"
                                     />
                                 </Form.Item>
 
                                 <Form.Item name="api_key" label="API Key riêng (tùy chọn)">
-                                    <Input.Password placeholder="Để trống = dùng key hệ thống" size="large" />
+                                    <Input.Password placeholder="Để trống = dùng key hệ thống (cùng endpoint hệ thống)" size="large" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    name="model"
+                                    label="AI Model"
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                >
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
 
                                 <Row gutter={24}>
@@ -592,13 +651,10 @@ export default function EditChatbotPage() {
                                 <Form.Item 
                                     name="compression_model" 
                                     label="AI Model dùng để tóm tắt/viết lại"
-                                    rules={[{ required: true, message: 'Vui lòng chọn model tóm tắt' }]}
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập model tóm tắt' }]}
                                 >
-                                    <Select size="large">
-                                        <Option value="gemini-1.5-flash">gemini-1.5-flash (Khuyến nghị - Nhanh & Rẻ)</Option>
-                                        <Option value="gemini-1.5-pro">gemini-1.5-pro (Tốt hơn cho tóm tắt phức tạp)</Option>
-                                        <Option value="qwen-3.6-35b">qwen-3.6-35b (Local model)</Option>
-                                    </Select>
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
                             </Card>
 

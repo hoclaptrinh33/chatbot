@@ -1,0 +1,126 @@
+erDiagram
+ %% ========== AUTH DATABASE (airc_auth_db) ==========
+
+ USERS ||--o{ USER_ROLES : "has"
+ ROLES ||--o{ USER_ROLES : "assigned to"
+ ROLES ||--o{ ROLE_PERMISSIONS : "has"
+ PERMISSIONS ||--o{ ROLE_PERMISSIONS : "granted to"
+
+ USERS {
+ ObjectId _id PK
+ string email UK
+ string hashed_password
+ string full_name
+ string role "default role code"
+ array role_ids "ObjectId[]"
+ boolean is_active
+ datetime created_at
+ }
+
+ ROLES {
+ ObjectId _id PK
+ string code UK "admin|teacher|student"
+ string name
+ string description
+ boolean is_active
+ datetime created_at
+ }
+
+ PERMISSIONS {
+ ObjectId _id PK
+ string code UK "resource:action:scope"
+ string name
+ string resource
+ string action
+ string scope
+ boolean is_system
+ datetime created_at
+ }
+
+ USER_ROLES {
+ ObjectId user_id FK
+ ObjectId role_id FK
+ }
+
+ ROLE_PERMISSIONS {
+ ObjectId role_id FK
+ ObjectId permission_id FK
+ }
+
+ %% ========== CORE DATABASE (airc_chatbot) ==========
+
+ DATASETS ||--o{ DATASET_FILES : "contains"
+ FILES ||--o{ DATASET_FILES : "linked via"
+ DATASET_FILES ||--o{ CHUNKS : "produces"
+ CHATBOTS }o--o{ DATASETS : "uses"
+ CHAT_SESSIONS ||--o{ MESSAGES : "contains"
+
+ DATASETS {
+ ObjectId _id PK
+ string name
+ string owner_id "user_id from Auth"
+ string visibility "private|shared"
+ int file_count
+ int total_chunks
+ datetime created_at
+ }
+
+ FILES {
+ ObjectId _id PK
+ string name
+ string path "uploads/user_id/file.pdf"
+ string mime_type
+ int size
+ string status "Ready|Error"
+ datetime uploaded_at
+ }
+
+ DATASET_FILES {
+ ObjectId _id PK
+ ObjectId dataset_id FK
+ ObjectId file_id FK
+ string status "Pending|Chunking|Embedding|Done|Error"
+ int chunk_count
+ boolean is_enabled
+ datetime created_at
+ }
+
+ CHUNKS {
+ ObjectId _id PK
+ ObjectId dataset_id FK
+ ObjectId dataset_file_id FK
+ ObjectId file_id FK
+ string text
+ array vector "float[768]"
+ int chunk_index
+ datetime created_at
+ }
+
+ CHATBOTS {
+ ObjectId _id PK
+ string name
+ string description
+ string owner_id "user_id from Auth"
+ array dataset_ids "ObjectId[]"
+ array allowed_roles "string[]"
+ boolean is_active
+ object config "top_k, reranker, etc"
+ datetime created_at
+ }
+
+ CHAT_SESSIONS {
+ ObjectId _id PK
+ string name
+ string user_id "from Auth"
+ string chatbot_id FK
+ datetime created_at
+ datetime updated_at
+ }
+
+ MESSAGES {
+ ObjectId _id PK
+ ObjectId session_id FK
+ string role "user|assistant"
+ string content
+ datetime created_at
+ }

@@ -70,7 +70,12 @@ class DatasetRepository(BaseRepository):
         Args:
             user_id: ID của user
         """
-        docs = await self.find_many({"shared_with": user_id})
+        docs = await self.find_many({
+            "$or": [
+                {"shared_with": user_id},
+                {"shared_with": "*"},
+            ]
+        })
         return self.serialize_docs(docs)
     
     async def share_dataset(self, dataset_id: str, user_ids: List[str]) -> bool:

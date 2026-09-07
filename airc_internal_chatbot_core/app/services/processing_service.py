@@ -36,36 +36,36 @@ class ProcessingService:
         self.chunk_repo = chunk_repo
         self._doc_converter = None
 
+    def _create_doc_converter(self, do_ocr: bool = False):
+        """Tạo DocumentConverter. OCR tắt mặc định vì EasyOCR tải model rất chậm và không cần cho PDF số hóa."""
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
+        from docling.datamodel.base_models import InputFormat
+
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.images_scale = 1.0
+        pipeline_options.generate_picture_images = False
+        pipeline_options.generate_page_images = False
+        pipeline_options.do_table_structure = True
+        pipeline_options.table_structure_options.do_cell_matching = True
+        pipeline_options.do_ocr = do_ocr
+        if do_ocr:
+            pipeline_options.ocr_options = EasyOcrOptions(lang=["vi", "en"])
+
+        return DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+            }
+        )
+
     @property
     def doc_converter(self):
         """Lazy-loading Docling DocumentConverter để tránh chiếm bộ nhớ RAM của API web chính"""
         if self._doc_converter is None:
-            logger.info("Khởi tạo Docling DocumentConverter...")
+            logger.info("Khởi tạo Docling DocumentConverter (OCR tắt)...")
             try:
-                from docling.document_converter import DocumentConverter, PdfFormatOption
-                from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
-                from docling.datamodel.base_models import InputFormat
-                
-                # Cấu hình pipeline options để bóc tách hình ảnh và cấu trúc bảng
-                pipeline_options = PdfPipelineOptions()
-                pipeline_options.images_scale = 1.0  # Tối ưu hóa chất lượng ảnh và dung lượng ổ đĩa
-                pipeline_options.generate_picture_images = False  # Tắt trích xuất hình vẽ/ảnh để nhẹ hơn
-                pipeline_options.generate_page_images = False    # Tắt xuất toàn bộ trang dưới dạng ảnh (không cần thiết)
-                
-                # Kích hoạt nhận diện cấu trúc bảng nâng cao
-                pipeline_options.do_ocr = True
-                pipeline_options.do_table_structure = True
-                pipeline_options.table_structure_options.do_cell_matching = True
-                
-                # Sử dụng EasyOCR song ngữ Tiếng Việt & Tiếng Anh khi cần fallback OCR
-                pipeline_options.ocr_options = EasyOcrOptions(lang=["vi", "en"])
-                
-                self._doc_converter = DocumentConverter(
-                    format_options={
-                        InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-                    }
-                )
-                logger.info("Khởi tạo Docling DocumentConverter thành công với cấu hình EasyOCR Tiếng Việt & cấu trúc bảng.")
+                self._doc_converter = self._create_doc_converter(do_ocr=False)
+                logger.info("Khởi tạo Docling DocumentConverter thành công (bảng cấu trúc, không OCR).")
             except Exception as e:
                 logger.exception("Không thể khởi tạo Docling DocumentConverter")
                 raise e
@@ -92,6 +92,8 @@ class ProcessingService:
             
             # Cập nhật trạng thái -> CHUNKING (Đang xử lý)
             await self.dataset_file_repo.update_status(dataset_file_id, DatasetFileStatus.CHUNKING)
+            await self.chunk_repo.delete_by_dataset_file(dataset_id, dataset_file_id)
+            vector_service.delete_by_dataset_file(dataset_id, dataset_file_id)
             
             # 2. Lấy thông tin File gốc (để biết đường dẫn)
             file_doc = await self.file_repo.get_by_id(df["file_id"])
@@ -255,6 +257,7 @@ class ProcessingService:
             logger.exception(f"[PROCESS] Lỗi khi xử lý dataset_file={dataset_file_id}")
             # Cập nhật trạng thái ERROR nếu có lỗi
             await self.dataset_file_repo.update_status(dataset_file_id, DatasetFileStatus.ERROR)
+            raise
 
     def _extract_text(self, file_path: str, filename: str, dataset_file_id: str = None) -> str:
         """Helper: Trích xuất text dựa trên định dạng file (Docling cho các định dạng được hỗ trợ)"""
@@ -266,7 +269,14 @@ class ProcessingService:
         if any(filename_lower.endswith(ext) for ext in docling_supported_exts):
             logger.info(f"Sử dụng Docling để bóc tách tài liệu: {filename}")
             try:
+                import time
+                t0 = time.monotonic()
                 result = self.doc_converter.convert(file_path)
+                logger.info(
+                    "Docling convert xong %s sau %.1fs",
+                    filename,
+                    time.monotonic() - t0,
+                )
                 
                 # Trích xuất và lưu hình ảnh (chỉ chạy nếu là PDF và có truyền dataset_file_id)
                 from docling_core.types.doc import PictureItem
@@ -305,6 +315,17 @@ class ProcessingService:
                         replaced_content += f"![Hình ảnh {i}]({img_path_rel})" + parts[i]
                     markdown_content = replaced_content
                     logger.info(f"Đã cập nhật {picture_counter} liên kết hình ảnh tĩnh vào Markdown.")
+
+                # PDF số hóa đã có text layer: nếu Docling ra ít chữ thì dùng pypdf
+                # thay vì bật EasyOCR (tải model có thể treo worker hàng giờ).
+                if filename_lower.endswith(".pdf") and len((markdown_content or "").strip()) < 100:
+                    fallback_text = self._fallback_extract(file_path, filename_lower)
+                    if fallback_text and len(fallback_text.strip()) >= 100:
+                        logger.warning(
+                            "Docling trả về ít text nhưng pypdf đọc được %s ký tự; dùng fallback.",
+                            len(fallback_text.strip()),
+                        )
+                        return fallback_text
                 
                 return markdown_content
             except Exception as e:

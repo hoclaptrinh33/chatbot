@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 
 
-from app.models.auth import User, UserRole, Permission
-from typing import Callable, Annotated
+from app.models.auth import User, UserRole, Permission, user_has_permission
+from typing import Callable, Annotated, Optional
 
 async def verify_token_with_auth_service(token: str) -> User:
     """
@@ -99,44 +99,37 @@ async def get_current_user(authorization: str = Header(None, alias="Authorizatio
 
 def require_permission(permission: Permission) -> Callable:
     """
-    Dependency factory để check permission (Core Service)
-    Since permissions are managed by Auth Service, Core currently relies on Role-based check 
-    OR re-verifying permissions if passed in token.
-    For now, we will implement Role-based logic mapping similar to Auth Service to ensure standalone correctness,
-    OR call Auth Service to check permission (expensive).
-    
-    Decision: Use Role-based mapping here as temporary strict check until full Permission propagation.
+    Strict role→permission check. Admin always passes.
+    Other roles must have the permission in ROLE_PERMISSIONS.
     """
     async def check_permission(
         current_user: Annotated[User, Depends(get_current_user)]
     ) -> User:
-        # Admin always has access
-        if current_user.role == UserRole.ADMIN:
+        if user_has_permission(current_user, permission):
             return current_user
-            
-        # TODO: In strict implementation, we should check permission code list.
-        # Ensure 'permission' is in user's permission list (if we fetch it).
-        # Currently verify_token doesn't return permissions list yet, only Role.
-        # We will assume Role implies Permission for now based on standardized matrix.
-        
-        # Simple Role Check for common permissions
-        if permission in [Permission.CHAT_USE, Permission.CHATBOTS_USE]:
-             # All roles have chat use
-             return current_user
-             
-        if permission in [Permission.DATASETS_CREATE, Permission.DATASETS_UPDATE_OWN]:
-            if current_user.role == UserRole.TEACHER:
-                return current_user
-                
-        # If strict check fails
-        if current_user.role != UserRole.ADMIN:
-             logger.warning(f"Permission denied: User {current_user.email} (Role: {current_user.role}) tried {permission}")
-             # raise HTTPException(status_code=403, detail="Permission denied")
-             # Allow for now to avoid breaking changes until full sync, but log warning
-             pass
-             
-        return current_user
+
+        logger.warning(
+            "Permission denied: user=%s role=%s tried=%s",
+            current_user.email,
+            current_user.role,
+            permission,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied: {permission.value}",
+        )
     return check_permission
+
+
+async def get_bearer_token(authorization: Optional[str] = Header(None, alias="Authorization")) -> str:
+    """Raw JWT for service-to-service forwarding (e.g. Core → Auth)."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return authorization.split(" ", 1)[1]
 
 
 
@@ -188,10 +181,14 @@ async def get_chat_service(
     dataset_file_repo: DatasetFileRepository = Depends(get_dataset_file_repo),
     chunk_repo: ChunkRepository = Depends(get_chunk_repo),
     session_repo = Depends(get_session_repo),
-    chatbot_repo = Depends(get_chatbot_repo)
+    chatbot_repo = Depends(get_chatbot_repo),
+    file_repo: FileRepository = Depends(get_file_repo),
 ) -> ChatService:
     """Inject ChatService with all dependencies"""
-    return ChatService(dataset_repo, dataset_file_repo, chunk_repo, session_repo, chatbot_repo)
+    return ChatService(
+        dataset_repo, dataset_file_repo, chunk_repo,
+        session_repo, chatbot_repo, file_repo,
+    )
 
 
 async def get_processing_service(

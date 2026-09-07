@@ -1,0 +1,93 @@
+sequenceDiagram
+ autonumber
+ participant UI as UI
+ participant Core as Core Service
+ participant Auth as Auth Service
+ participant Chat as ChatService
+ participant Cache as Redis Cache
+ participant Embed as EmbeddingService
+ participant Vector as Qdrant
+ participant Rerank as RerankService
+ participant Chunk as ChunkRepository
+ participant LLM as AI Service
+ participant Session as SessionRepository
+
+ Note over UI,Session: BƯỚC 1-2: Request + Token Verification
+
+ UI->>+Core: POST /api/v1/chat/ask<br/>{question, chatbot_id, session_id}<br/>Header: Bearer token
+
+ Core->>+Auth: POST /api/auth/verify {"token": "eyJ..."}
+ Auth-->>-Core: {user_id, role}
+
+ Core->>+Chat: ask_question(question, chatbot_id, user_context)
+
+ Note over UI,Session: BƯỚC 3: RBAC Check (Chatbot Access)
+
+ Chat->>Chat: Fetch chatbot từ DB
+
+ alt User không phải admin
+ Chat->>Chat: Kiểm tra role in allowed_roles?
+ alt Không có quyền
+ Chat-->>Core: PermissionError
+ Core-->>UI: 403 "Không có quyền truy cập Chatbot"
+ end
+ end
+
+ Note over UI,Session: BƯỚC 4: Context Locking (Security)
+
+ Chat->>Chat: dataset_ids = chatbot.dataset_ids<br/>(Override client params!)
+
+ Note over UI,Session: BƯỚC 5: Session History
+
+ Chat->>+Session: add_message(session_id, "user", question)
+ Session-->>-Chat: OK
+ Chat->>+Session: get_messages(session_id)
+ Session-->>-Chat: history[]
+
+ Note over UI,Session: BƯỚC 6: Semantic Cache Check
+
+ Chat->>+Embed: embed(question)
+ Embed-->>-Chat: q_vector [768]
+
+ Chat->>+Cache: get(question, q_vector, chatbot_id)
+
+ alt Cache HIT Cache-->>Chat: cached_answer
+ Chat->>Session: add_message(session_id, "assistant", cached)
+ Chat-->>Core: {answer: cached, cache_hit: true}
+ Core-->>UI: Response (fast!)
+ else Cache MISS
+ Cache-->>-Chat: null
+
+ Note over UI,Session: BƯỚC 7: Vector Search
+
+ Chat->>+Vector: search(q_vector, dataset_ids, top_k=20)
+ Note right of Vector: Cosine Similarity<br/>trên collection dataset_{id}
+ Vector-->>-Chat: [chunk_id1, chunk_id2, ...] + scores
+
+ Note over UI,Session: BƯỚC 8: Rerank
+
+ Chat->>+Rerank: rerank(question, chunks, top_k=5)
+ Note right of Rerank: Cross-Encoder<br/>ms-marco-MiniLM
+ Rerank-->>-Chat: [best_chunks] sorted by relevance
+
+ Note over UI,Session: BƯỚC 9: Get Full Chunk Text
+
+ Chat->>+Chunk: get_by_ids(chunk_ids)
+ Chunk-->>-Chat: [{text, metadata}, ...]
+
+ Note over UI,Session: BƯỚC 10: Build Prompt + LLM
+
+ Chat->>Chat: build_prompt(<br/> system_prompt,<br/> context_chunks,<br/> history,<br/> question<br/>)
+
+ Chat->>+LLM: generate(prompt)
+ Note right of LLM: AI model được cấu hình<br/>theo môi trường triển khai
+ LLM-->>-Chat: generated_answer
+
+ Note over UI,Session: BƯỚC 11: Save & Cache
+
+ Chat->>Cache: set(question, q_vector, answer, chatbot_id)
+ Chat->>Session: add_message(session_id, "assistant", answer)
+
+ Chat-->>-Core: {<br/> answer,<br/> sources,<br/> debug_metrics<br/>}
+ Core-->>-UI: ChatResponse
+ end

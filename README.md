@@ -1,3 +1,5 @@
+
+
 # AIRC Internal Chatbot (Project Master)
 
 Dự án AIRC Internal Chatbot là hệ thống tích hợp RAG (Retrieval-Augmented Generation) để hỗ trợ tra cứu thông tin nội bộ, được chia thành 3 microservices chính.
@@ -16,8 +18,8 @@ Dự án AIRC Internal Chatbot là hệ thống tích hợp RAG (Retrieval-Augme
 
 ## 🚀 Production Status (GKE)
 
-**Cluster:** rag-gke (2 nodes x e2-standard-4)  
-**Domain:** ragairc.neovort.shop  
+**Cluster:** rag-gke (2 nodes x e2-standard-4)
+**Domain:** ragairc.neovort.shop
 **Status:** ✅ All services running
 
 | Service | Pods | CPU Usage | RAM Usage | Status     |
@@ -67,21 +69,21 @@ airc_internal_chatbot_v1/         # ROOT DIRECTORY
 
 Nếu bạn có toàn bộ source code trong thư mục cha `airc_internal_chatbot_v1` như cấu trúc trên.
 
-1.  **Cấu hình Environment:**
-    - Vào từng thư mục con (`auth`, `core`, `ui`), copy file `.env.example` thành `.env` (hoặc `.env.local` cho UI).
-    - Cập nhật các secret keys nếu cần.
+1. **Cấu hình Environment:**
 
-2.  **Khởi động hệ thống:**
-    Tại thư mục Root, chạy lệnh:
+   - Vào từng thư mục con (`auth`, `core`, `ui`), copy file `.env.example` thành `.env` (hoặc `.env.local` cho UI).
+   - Cập nhật các secret keys nếu cần.
+2. **Khởi động hệ thống:**
+   Tại thư mục Root, chạy lệnh:
 
-    ```bash
-    docker-compose up -d --build
-    ```
+   ```bash
+   docker-compose up -d --build
+   ```
+3. **Truy cập:**
 
-3.  **Truy cập:**
-    - Frontend: `http://localhost:3000`
-    - Auth API: `http://localhost:8001/docs`
-    - Core API: `http://localhost:8000/docs`
+   - Frontend: `http://localhost:3000`
+   - Auth API: `http://localhost:8001/docs`
+   - Core API: `http://localhost:8000/docs`
 
 ### Cách 2: Chạy từ Source Code Rời rạc (Distributed Repos)
 
@@ -115,54 +117,53 @@ docker-compose up -d --build
 **Câu hỏi:** _Nếu tôi chỉ tải 3 source code và chạy `docker build/run` từng cái thì có chạy được không?_
 **Trả lời:** Không chạy ngay được. Bạn sẽ **THIẾU 3 thành phần cốt lõi** mà Docker Compose tự động xử lý giúp bạn:
 
-1.  **Docker Network (Mạng nội bộ):**
-    - Các container mặc định bị cô lập, không thể gọi nhau bằng tên (ví dụ: Core không thể gọi `http://auth_service` được).
-    - **Giải pháp:** Phải tự tạo mạng: `docker network create airc-network`.
+1. **Docker Network (Mạng nội bộ):**
 
-2.  **Infrastructure (Cơ sở hạ tầng):**
-    - Docker Compose tự bật MongoDB, Redis, Qdrant. Nếu chạy thủ công, bạn phải tự cài và chạy các services này trước.
-    - **Giải pháp:** Phải tự chạy MongoDB, Redis, Qdrant và join vào network trên.
+   - Các container mặc định bị cô lập, không thể gọi nhau bằng tên (ví dụ: Core không thể gọi `http://auth_service` được).
+   - **Giải pháp:** Phải tự tạo mạng: `docker network create airc-network`.
+2. **Infrastructure (Cơ sở hạ tầng):**
 
-3.  **Environment Variables (Kết nối):**
-    - Bạn phải sửa file `.env` để trỏ đúng IP hoặc Hostname của các container trên (không dùng `localhost` được vì localhost trong container là chính nó).
+   - Docker Compose tự bật MongoDB, Redis, Qdrant. Nếu chạy thủ công, bạn phải tự cài và chạy các services này trước.
+   - **Giải pháp:** Phải tự chạy MongoDB, Redis, Qdrant và join vào network trên.
+3. **Environment Variables (Kết nối):**
+
+   - Bạn phải sửa file `.env` để trỏ đúng IP hoặc Hostname của các container trên (không dùng `localhost` được vì localhost trong container là chính nó).
 
 #### Hướng dẫn chạy thủ công (Manual Workflow):
 
 Nếu bắt buộc phải chạy rời, hãy làm theo thứ tự:
 
-1.  **Tạo mạng:**
+1. **Tạo mạng:**
 
-    ```bash
-    docker network create airc-net
-    ```
+   ```bash
+   docker network create airc-net
+   ```
+2. **Chạy Database (Bắt buộc):**
 
-2.  **Chạy Database (Bắt buộc):**
+   ```bash
+   docker run -d --name mongo --net airc-net mongo:latest
+   docker run -d --name redis --net airc-net redis:alpine
+   docker run -d --name qdrant --net airc-net qdrant/qdrant
+   ```
+3. **Chạy Apps (Kèm env):**
 
-    ```bash
-    docker run -d --name mongo --net airc-net mongo:latest
-    docker run -d --name redis --net airc-net redis:alpine
-    docker run -d --name qdrant --net airc-net qdrant/qdrant
-    ```
+   ```bash
+   # Auth Service
+   docker run -d --name auth_service --net airc-net --env MONGODB_URL="mongodb://mongo:27017" airc-auth-service
 
-3.  **Chạy Apps (Kèm env):**
+   # Core Service
+   docker run -d --name core_service --net airc-net --env AUTH_SERVICE_URL="http://auth_service:8001" airc-core-service
 
-    ```bash
-    # Auth Service
-    docker run -d --name auth_service --net airc-net --env MONGODB_URL="mongodb://mongo:27017" airc-auth-service
-
-    # Core Service
-    docker run -d --name core_service --net airc-net --env AUTH_SERVICE_URL="http://auth_service:8001" airc-core-service
-
-    # UI Service
-    docker run -d -p 3000:3000 --name ui_service --net airc-net airc-ui-service
-    ```
+   # UI Service
+   docker run -d -p 3000:3000 --name ui_service --net airc-net airc-ui-service
+   ```
 
 ---
 
 ## 3. Tech Stack
 
-| Service  | Technology       | Port | DB / Components                                              |
-| :------- | :--------------- | :--- | :----------------------------------------------------------- |
+| Service        | Technology       | Port | DB / Components                                              |
+| :------------- | :--------------- | :--- | :----------------------------------------------------------- |
 | **Auth** | Python (FastAPI) | 8001 | MongoDB (Users, Roles)                                       |
 | **Core** | Python (FastAPI) | 8000 | MongoDB (Chat), Qdrant (Vector), Redis (Queue), Gemini (LLM) |
 | **UI**   | Next.js (React)  | 3000 | Zustand, Ant Design, Axios                                   |
@@ -180,13 +181,14 @@ Nếu bắt buộc phải chạy rời, hãy làm theo thứ tự:
   ```
 
   _(Lưu ý: Trong Docker, dùng tên service `airc_auth_service` thay vì localhost)_
-
 - **UI Service (build args hoặc `.env.local`):**
+
   ```properties
   NEXT_PUBLIC_AUTH_API=http://localhost:8001/api/auth
   NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
   NEXT_PUBLIC_APP_URL=http://localhost:3000
   ```
+
   _(Lưu ý: UI chạy ở browser client nên vẫn gọi API qua localhost)_
 
 ---
@@ -195,27 +197,27 @@ Nếu bắt buộc phải chạy rời, hãy làm theo thứ tự:
 
 ### Auth Service (Port 8001)
 
-| Method | Endpoint                | Description             |
-| ------ | ----------------------- | ----------------------- |
-| POST   | `/api/auth/register`    | Đăng ký user mới        |
+| Method | Endpoint                  | Description                |
+| ------ | ------------------------- | -------------------------- |
+| POST   | `/api/auth/register`    | Đăng ký user mới       |
 | POST   | `/api/auth/login`       | Đăng nhập               |
 | GET    | `/api/auth/me`          | Thông tin user hiện tại |
-| GET    | `/api/rbac/roles`       | Danh sách roles         |
-| GET    | `/api/rbac/permissions` | Danh sách permissions   |
-| GET    | `/api/rbac/users`       | Danh sách users (Admin) |
+| GET    | `/api/rbac/roles`       | Danh sách roles           |
+| GET    | `/api/rbac/permissions` | Danh sách permissions     |
+| GET    | `/api/rbac/users`       | Danh sách users (Admin)   |
 
 ### Core Service (Port 8000)
 
-| Method | Endpoint                        | Description                                |
-| ------ | ------------------------------- | ------------------------------------------ |
-| GET    | `/api/v1/chatbots`              | Danh sách chatbots                         |
-| POST   | `/api/v1/chatbots`              | Tạo chatbot mới                            |
-| GET    | `/api/v1/datasets`              | Danh sách datasets                         |
-| POST   | `/api/v1/datasets`              | Tạo dataset mới                            |
+| Method | Endpoint                          | Description                                |
+| ------ | --------------------------------- | ------------------------------------------ |
+| GET    | `/api/v1/chatbots`              | Danh sách chatbots                        |
+| POST   | `/api/v1/chatbots`              | Tạo chatbot mới                          |
+| GET    | `/api/v1/datasets`              | Danh sách datasets                        |
+| POST   | `/api/v1/datasets`              | Tạo dataset mới                          |
 | POST   | `/api/v1/files/upload`          | Upload file                                |
 | GET    | `/api/v1/files/{id}/view`       | Xem file (PDF/Image inline, DOCX download) |
-| POST   | `/api/v1/chat`                  | Gửi tin nhắn chat                          |
-| GET    | `/api/v1/sessions`              | Lịch sử chat sessions                      |
+| POST   | `/api/v1/chat`                  | Gửi tin nhắn chat                        |
+| GET    | `/api/v1/sessions`              | Lịch sử chat sessions                    |
 | GET    | `/api/v1/stats/dashboard`       | Dashboard statistics                       |
 | GET    | `/api/v1/stats/recent-activity` | Recent activity                            |
 
@@ -223,11 +225,11 @@ Nếu bắt buộc phải chạy rời, hãy làm theo thứ tự:
 
 ## 6. Roles & Permissions (RBAC)
 
-| Role        | Permissions                                         |
-| ----------- | --------------------------------------------------- |
+| Role              | Permissions                                         |
+| ----------------- | --------------------------------------------------- |
 | **admin**   | Full access: users, roles, chatbots, datasets, chat |
 | **teacher** | Manage datasets, view chatbots, chat                |
-| **student** | Chat only (chatbots có `allowed_roles` phù hợp)     |
+| **student** | Chat only (chatbots có`allowed_roles` phù hợp) |
 
 ---
 

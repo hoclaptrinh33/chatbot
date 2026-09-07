@@ -1157,7 +1157,7 @@ class ChunkingService:
             if not sec_text:
                 continue
                 
-            heading_path = sec["heading_path"]
+            heading_path = [h for h in (sec.get("heading_path") or []) if h]
             section_type = sec["section_type"]
             
             # Xây dựng prefix cho context

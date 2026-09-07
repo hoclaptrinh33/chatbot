@@ -1,6 +1,6 @@
 import logging
 import sys
-from rq import Worker, Queue
+from rq import SimpleWorker, Queue
 from app.core.queues import redis_conn
 
 # Initialize Logging
@@ -11,10 +11,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Không preload models ở tiến trình cha để tránh lỗi "Cannot re-initialize CUDA in forked subprocess" khi dùng GPU.
-# Thư viện EmbeddingService và EasyOCR sẽ tự động Lazy Load an toàn bên trong tiến trình con được fork.
-from app.services.embedding_service import embedding_service
-# embedding_service.preload_models()
+# Worker owns heavy models. API process should keep PRELOAD_MODELS=false.
+import os
+if os.getenv("PRELOAD_MODELS", "true").lower() in {"1", "true", "yes"}:
+    from app.services.embedding_service import embedding_service
+    try:
+        embedding_service.preload_models()
+    except Exception as exc:
+        logger.warning("Worker model preload skipped: %s", exc)
 
 if __name__ == "__main__":
     logger.info("Starting RAG Worker...")
@@ -23,8 +27,10 @@ if __name__ == "__main__":
     # 'Connection' context manager is deprecated/removed in newer RQ
     queues = [Queue("ingest", connection=redis_conn)]
     
-    worker = Worker(
-        queues, 
+    # SimpleWorker runs jobs in-process. Forked RQ workers cannot re-init CUDA
+    # after preload_models() already touched the GPU in the parent process.
+    worker = SimpleWorker(
+        queues,
         connection=redis_conn
     )
     worker.work()

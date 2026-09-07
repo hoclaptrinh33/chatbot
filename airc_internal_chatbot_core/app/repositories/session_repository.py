@@ -92,14 +92,22 @@ class SessionRepository(BaseRepository):
 
     # ==================== Message Operations ====================
 
-    async def add_message(self, session_id: str, role: str, content: str) -> dict:
-        """Lưu tin nhắn mới"""
+    async def add_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> dict:
+        """Lưu tin nhắn mới. extra có thể chứa sources, latency_ms, feedback."""
         doc = {
             "session_id": session_id,
             "role": role,
             "content": content,
             "created_at": datetime.utcnow()
         }
+        if extra:
+            doc.update({k: v for k, v in extra.items() if v is not None})
         result = await self.message_collection.insert_one(doc)
         doc["id"] = str(result.inserted_id)
         
@@ -118,3 +126,73 @@ class SessionRepository(BaseRepository):
         cursor = self.message_collection.find({"session_id": session_id}).sort("created_at", 1).limit(limit)
         docs = await cursor.to_list(length=limit)
         return self.serialize_docs(docs)
+
+    async def get_message(self, message_id: str) -> Optional[dict]:
+        oid = self.to_object_id(message_id)
+        if not oid:
+            return None
+        doc = await self.message_collection.find_one({"_id": oid})
+        return self.serialize_doc(doc) if doc else None
+
+    async def set_message_feedback(
+        self,
+        message_id: str,
+        rating: str,
+        comment: Optional[str] = None,
+    ) -> bool:
+        oid = self.to_object_id(message_id)
+        if not oid:
+            return False
+        update = {"feedback": rating, "feedback_at": datetime.utcnow()}
+        if comment is not None:
+            update["feedback_comment"] = comment
+        result = await self.message_collection.update_one(
+            {"_id": oid, "role": "assistant"},
+            {"$set": update},
+        )
+        return result.matched_count > 0
+
+    async def get_recent_user_questions(self, user_id: str, limit: int = 8) -> List[str]:
+        sessions = await self.get_user_sessions(user_id, limit=20)
+        session_ids = [s["id"] for s in sessions]
+        if not session_ids:
+            return []
+        cursor = self.message_collection.find(
+            {"session_id": {"$in": session_ids}, "role": "user"},
+            {"content": 1},
+        ).sort("created_at", -1).limit(40)
+        docs = await cursor.to_list(length=40)
+        seen = set()
+        questions = []
+        for doc in docs:
+            text = (doc.get("content") or "").strip()
+            key = text.lower()
+            if len(text) < 8 or key in seen:
+                continue
+            seen.add(key)
+            questions.append(text)
+            if len(questions) >= limit:
+                break
+        return questions
+
+    async def get_feedback_counts(self) -> Dict[str, int]:
+        pipeline = [
+            {"$match": {"role": "assistant", "feedback": {"$in": ["up", "down"]}}},
+            {"$group": {"_id": "$feedback", "count": {"$sum": 1}}},
+        ]
+        counts = {"up": 0, "down": 0}
+        async for row in self.message_collection.aggregate(pipeline):
+            if row["_id"] in counts:
+                counts[row["_id"]] = row["count"]
+        return counts
+
+    async def get_average_latency_ms(self, sample_limit: int = 200) -> Optional[float]:
+        cursor = self.message_collection.find(
+            {"role": "assistant", "latency_ms": {"$gt": 0}},
+            {"latency_ms": 1},
+        ).sort("created_at", -1).limit(sample_limit)
+        docs = await cursor.to_list(length=sample_limit)
+        values = [d.get("latency_ms") for d in docs if isinstance(d.get("latency_ms"), (int, float))]
+        if not values:
+            return None
+        return sum(values) / len(values)

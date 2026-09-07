@@ -37,10 +37,13 @@ class SectionParser:
     def _parse_markdown(self, text: str) -> List[Dict[str, Any]]:
         lines = text.split("\n")
         sections = []
-        current_headers = []
+        headers_by_level = {}
         current_section_text = []
         section_idx = 0
         
+        def current_headers():
+            return [headers_by_level[k] for k in sorted(headers_by_level)]
+
         def save_section():
             nonlocal section_idx
             if current_section_text:
@@ -48,7 +51,7 @@ class SectionParser:
                 if full_text:
                     sections.append({
                         "section_index": section_idx,
-                        "heading_path": list(current_headers),
+                        "heading_path": current_headers(),
                         "section_type": "markdown",
                         "text": full_text,
                         "page_hint": None,
@@ -63,10 +66,8 @@ class SectionParser:
                 save_section()
                 level = len(match.group(1))
                 title = match.group(2).strip()
-                current_headers = current_headers[:level - 1]
-                while len(current_headers) < level - 1:
-                    current_headers.append("")
-                current_headers.append(title)
+                headers_by_level = {k: v for k, v in headers_by_level.items() if k < level}
+                headers_by_level[level] = title
                 current_section_text.append(line)
             else:
                 current_section_text.append(line)
@@ -81,7 +82,35 @@ class SectionParser:
                 "page_hint": None,
                 "structure_markers": {}
             })
-        return sections
+        return self._merge_heading_only_sections(sections)
+
+    def _merge_heading_only_sections(self, sections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Gộp mục chỉ có heading vào section kế tiếp để tránh chunk rỗng/siêu ngắn."""
+        if not sections:
+            return sections
+        merged: List[Dict[str, Any]] = []
+        i = 0
+        while i < len(sections):
+            sec = dict(sections[i])
+            sec["heading_path"] = [h for h in sec.get("heading_path", []) if h]
+            body = "\n".join(
+                ln for ln in sec["text"].split("\n")
+                if ln.strip() and not self.markdown_re.match(ln.strip())
+            ).strip()
+            if not body and i + 1 < len(sections):
+                nxt = dict(sections[i + 1])
+                nxt["text"] = sec["text"].rstrip() + "\n\n" + nxt["text"]
+                nxt_path = [h for h in nxt.get("heading_path", []) if h]
+                path = sec["heading_path"]
+                nxt["heading_path"] = path + [h for h in nxt_path if h not in path]
+                merged.append(nxt)
+                i += 2
+                continue
+            merged.append(sec)
+            i += 1
+        for idx, sec in enumerate(merged):
+            sec["section_index"] = idx
+        return merged
 
     def _parse_legal(self, text: str) -> List[Dict[str, Any]]:
         lines = text.split("\n")

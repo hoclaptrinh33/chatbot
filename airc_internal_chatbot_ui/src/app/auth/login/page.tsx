@@ -126,9 +126,14 @@ export default function LoginPage() {
                         </Form.Item>
 
                         <Form.Item>
-                            <Form.Item name="remember" valuePropName="checked" noStyle>
-                                <Checkbox>Ghi nhớ đăng nhập</Checkbox>
-                            </Form.Item>
+                            <div className="flex items-center justify-between">
+                                <Form.Item name="remember" valuePropName="checked" noStyle>
+                                    <Checkbox>Ghi nhớ đăng nhập</Checkbox>
+                                </Form.Item>
+                                <Link href="/auth/forgot-password" style={{ color: '#c61a1a' }}>
+                                    Quên mật khẩu?
+                                </Link>
+                            </div>
                         </Form.Item>
 
                         <Form.Item>

@@ -3,6 +3,7 @@
 import React from 'react';
 import { Layout, Avatar, Dropdown, MenuProps, Space, Button, theme } from 'antd';
 import { UserOutlined, LogoutOutlined, BellOutlined, SettingOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
 import useAuthStore from '@/stores/authStore';
 
 const { Header } = Layout;
@@ -22,6 +23,8 @@ const MainHeader: React.FC<HeaderProps> = ({ collapsed }) => {
 
     // Lay thong tin user tu auth store
     const { user, logout } = useAuthStore();
+    const router = useRouter();
+    const isAdmin = user?.role?.toLowerCase() === 'admin';
 
     // Menu dropdown cho user info
     const userMenuItems: MenuProps['items'] = [
@@ -30,11 +33,14 @@ const MainHeader: React.FC<HeaderProps> = ({ collapsed }) => {
             label: 'Thông tin tài khoản',
             icon: <UserOutlined />,
         },
-        {
-            key: 'settings',
-            label: 'Cài đặt',
-            icon: <SettingOutlined />,
-        },
+        ...(isAdmin
+            ? [{
+                key: 'settings',
+                label: 'Cài đặt hệ thống',
+                icon: <SettingOutlined />,
+                onClick: () => router.push('/admin/settings'),
+            }]
+            : []),
         {
             type: 'divider',
         },

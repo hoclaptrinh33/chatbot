@@ -73,8 +73,8 @@ export default function CreateRolePage() {
                         >
                             <Form.Item
                                 name="name"
-                                label="Ten Role"
-                                rules={[{ required: true, message: 'Vui long nhap ten role' }]}
+                                label="Tên Role"
+                                rules={[{ required: true, message: 'Vui lòng nhập tên role' }]}
                                 help="Vi du: editor, viewer"
                             >
                                 <Input placeholder="Nhap ten role unique" />

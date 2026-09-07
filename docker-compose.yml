@@ -96,6 +96,15 @@ services:
       - DEBUG=True
       - HF_HOME=/app/models_cache
       - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
+      - SEMANTIC_CACHE_ENABLED=false
+      - CHAT_FAST_PATH=true
+      - PRELOAD_MODELS=true
+      - CUDA_VISIBLE_DEVICES=-1
+      - EMBED_DEVICE=cpu
+      - RERANK_DEVICE=cpu
+      - OMP_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
     deploy:
       resources:
         reservations:
@@ -142,6 +151,10 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - HF_HOME=/app/models_cache
       - EASYOCR_MODULE_PATH=/app/models_cache/easyocr
+      - CUDA_VISIBLE_DEVICES=-1
+      - EMBED_DEVICE=cpu
+      - RERANK_DEVICE=cpu
+      - PRELOAD_MODELS=true
     deploy:
       resources:
         reservations:
@@ -177,8 +190,8 @@ services:
       context: ./airc_internal_chatbot_ui
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_AUTH_API: /api/auth
-        NEXT_PUBLIC_API_URL: /api/v1
+        NEXT_PUBLIC_AUTH_API: http://localhost:8001/api/auth
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
         NEXT_PUBLIC_APP_URL: http://localhost:3000
         CORE_INTERNAL_URL: http://core_service:8000
         AUTH_INTERNAL_URL: http://auth_service:8001

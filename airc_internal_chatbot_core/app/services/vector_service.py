@@ -187,6 +187,38 @@ class VectorService:
         
         return scores, payloads
 
+    def delete_by_dataset_file(self, dataset_id: str, dataset_file_id: str) -> None:
+        """Xóa vectors của một dataset file trước khi ingest lại."""
+        collection_name = self._get_collection_name(dataset_id)
+        try:
+            collections = self.client.get_collections().collections
+            if not any(c.name == collection_name for c in collections):
+                return
+            self.client.delete(
+                collection_name=collection_name,
+                points_selector=rest.FilterSelector(
+                    filter=rest.Filter(
+                        must=[
+                            rest.FieldCondition(
+                                key="dataset_file_id",
+                                match=rest.MatchValue(value=dataset_file_id),
+                            )
+                        ]
+                    )
+                ),
+            )
+            logger.info(
+                "[VECTOR] Đã xóa points dataset_file_id=%s trong %s",
+                dataset_file_id,
+                collection_name,
+            )
+        except Exception as e:
+            logger.warning(
+                "[VECTOR] Không xóa được points cũ dataset_file=%s: %s",
+                dataset_file_id,
+                e,
+            )
+
     def delete_index(self, dataset_id: str):
         """Xóa toàn bộ collection (Dọn dẹp dữ liệu)"""
         collection_name = self._get_collection_name(dataset_id)

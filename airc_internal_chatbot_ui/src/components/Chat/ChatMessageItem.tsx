@@ -11,11 +11,15 @@ import {
     CheckOutlined,
     CloseOutlined,
     SendOutlined,
-    WarningOutlined
+    WarningOutlined,
+    LikeOutlined,
+    DislikeOutlined,
 } from '@ant-design/icons';
 import { ChatMessage } from '@/core/entities/Chat';
 import ChatMessageContent from './ChatMessageContent';
+import SourceCitations from './SourceCitations';
 import dayjs from 'dayjs';
+import chatService from '@/services/chatService';
 
 interface ChatMessageItemProps {
     message: ChatMessage;
@@ -44,6 +48,8 @@ export default function ChatMessageItem({
     const [editValue, setEditValue] = useState(msg.content);
     const [copied, setCopied] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
+    const [feedback, setFeedback] = useState<'up' | 'down' | null>(msg.feedback ?? null);
+    const [feedbackLoading, setFeedbackLoading] = useState(false);
 
     const isUser = msg.role === 'user';
     const isError = !isUser && (
@@ -91,6 +97,39 @@ export default function ChatMessageItem({
             await onRegenerate(index);
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const [commentOpen, setCommentOpen] = useState(false);
+    const [comment, setComment] = useState('');
+
+    const handleFeedback = async (rating: 'up' | 'down', extraComment?: string) => {
+        if (!msg.id || feedbackLoading) return;
+        if (rating === 'down' && extraComment === undefined && feedback !== 'down') {
+            setCommentOpen(true);
+            return;
+        }
+        const next = feedback === rating && extraComment === undefined ? null : rating;
+        setFeedbackLoading(true);
+        try {
+            if (next) {
+                await chatService.submitFeedback({
+                    message_id: msg.id,
+                    session_id: msg.session_id,
+                    rating: next,
+                    comment: extraComment,
+                });
+                setFeedback(next);
+                setCommentOpen(false);
+                message.success(next === 'up' ? 'Đã ghi nhận hữu ích' : 'Đã ghi nhận góp ý');
+            } else {
+                setFeedback(null);
+            }
+        } catch (err) {
+            console.error(err);
+            message.error('Không lưu được đánh giá');
+        } finally {
+            setFeedbackLoading(false);
         }
     };
 
@@ -168,37 +207,80 @@ export default function ChatMessageItem({
 
                     {/* Meta info & Toolbar bên dưới bong bóng của AI */}
                     {!isUser && !isEditing && (
-                        <div className="flex items-center justify-between flex-row-reverse px-1 mt-1 select-none">
-                            {/* Thời gian gửi */}
-                            <span className="text-[10px] text-gray-400">
-                                {dayjs(msg.timestamp).format('HH:mm')}
-                            </span>
-                            
-                            {/* Toolbar AI */}
-                            <Space size={4} className="opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                                <Tooltip title="Sao chép">
-                                    <Button
-                                        type="text"
-                                        size="small"
-                                        icon={copied ? <CheckOutlined className="text-green-500" /> : <CopyOutlined className="text-gray-400 hover:text-gray-600" />}
-                                        onClick={handleCopy}
-                                        className="flex items-center justify-center p-1 h-6 w-6"
-                                    />
-                                </Tooltip>
-                                {isLast && (
-                                    <Tooltip title="Thử lại ">
+                        <>
+                            <SourceCitations sources={msg.sources} />
+                            <div className="flex items-center justify-between flex-row-reverse px-1 mt-1 select-none">
+                                <span className="text-[10px] text-gray-400">
+                                    {dayjs(msg.timestamp).format('HH:mm')}
+                                </span>
+                                <Space size={4} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150">
+                                    <Tooltip title="Hữu ích">
                                         <Button
                                             type="text"
                                             size="small"
-                                            icon={<ReloadOutlined className="text-gray-400 hover:text-red-500" />}
-                                            onClick={handleRegenerate}
-                                            disabled={loading}
+                                            icon={<LikeOutlined className={feedback === 'up' ? 'text-green-600' : 'text-gray-400'} />}
+                                            onClick={() => handleFeedback('up')}
+                                            loading={feedbackLoading}
+                                            disabled={!msg.id}
                                             className="flex items-center justify-center p-1 h-6 w-6"
                                         />
                                     </Tooltip>
-                                )}
-                            </Space>
-                        </div>
+                                    <Tooltip title="Chưa hữu ích">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={<DislikeOutlined className={feedback === 'down' ? 'text-red-500' : 'text-gray-400'} />}
+                                            onClick={() => handleFeedback('down')}
+                                            loading={feedbackLoading}
+                                            disabled={!msg.id}
+                                            className="flex items-center justify-center p-1 h-6 w-6"
+                                        />
+                                    </Tooltip>
+                                    <Tooltip title="Sao chép">
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={copied ? <CheckOutlined className="text-green-500" /> : <CopyOutlined className="text-gray-400 hover:text-gray-600" />}
+                                            onClick={handleCopy}
+                                            className="flex items-center justify-center p-1 h-6 w-6"
+                                        />
+                                    </Tooltip>
+                                    {isLast && (
+                                        <Tooltip title="Thử lại ">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<ReloadOutlined className="text-gray-400 hover:text-red-500" />}
+                                                onClick={handleRegenerate}
+                                                disabled={loading}
+                                                className="flex items-center justify-center p-1 h-6 w-6"
+                                            />
+                                        </Tooltip>
+                                    )}
+                                </Space>
+                            </div>
+                            {commentOpen && (
+                                <div className="mt-2 flex flex-col gap-2 bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                    <Input.TextArea
+                                        value={comment}
+                                        onChange={(e) => setComment(e.target.value)}
+                                        placeholder="Câu này sai vì… (không bắt buộc)"
+                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <Button size="small" onClick={() => setCommentOpen(false)}>Hủy</Button>
+                                        <Button
+                                            size="small"
+                                            type="primary"
+                                            onClick={() => handleFeedback('down', comment.trim())}
+                                            loading={feedbackLoading}
+                                        >
+                                            Gửi góp ý
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Meta info & Toolbar của User */}

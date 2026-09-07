@@ -34,7 +34,7 @@ export default function ChatSidebar({ className }: ChatSidebarProps) {
             title={
                 <div className="flex items-center gap-2">
                     <DatabaseOutlined className="text-red-700" />
-                    <span>Chon Datasets</span>
+                    <span>Chọn Datasets</span>
                 </div>
             }
             className={`border-0 shadow-none bg-transparent ${className || ''}`}

@@ -49,10 +49,10 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
                         <Image src="/logo_airc.jpg" alt="AIRC Logo" width={120} height={120} className="rounded-full" />
                     </div>
                     <Text type="secondary" className="text-lg">
-                        Bat dau tro chuyen voi AIRC Assistant
+                        Bắt đầu trò chuyện với AIRC Assistant
                     </Text>
                     <Text type="secondary" className="text-sm">
-                        Chon dataset ben trai va dat cau hoi.
+                        Chọn dataset bên trái và đặt câu hỏi.
                     </Text>
                 </div>
             )}

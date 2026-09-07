@@ -116,6 +116,21 @@ class AuthService implements IAuthService {
             headers: { Authorization: `Bearer ${token}` }
         });
     }
+
+    public async getUser(id: string, token: string): Promise<User> {
+        const response = await this.api.get<User>(`/users/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        return response.data;
+    }
+
+    public async forgotPassword(email: string): Promise<void> {
+        await this.api.post('/forgot-password', { email });
+    }
+
+    public async resetPassword(token: string, newPassword: string): Promise<void> {
+        await this.api.post('/reset-password', { token, new_password: newPassword });
+    }
 }
 
 export interface CreateUserDto {

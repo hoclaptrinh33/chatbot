@@ -76,7 +76,7 @@ const useAuthStore = create<AuthState>()(
                 } catch (error: unknown) {
                     console.error('[AuthStore] Login failed:', error);
                     const err = error as AxiosError<{ detail: string }>;
-                    const errorMsg = err.response?.data?.detail || err.message || 'Dang nhap that bai';
+                    const errorMsg = err.response?.data?.detail || err.message || 'Đăng nhập thất bại';
 
                     set({
                         error: errorMsg,

@@ -88,6 +88,7 @@ ROLE_PERMISSIONS: dict[UserRole, List[Permission]] = {
         Permission.CHATBOTS_USE,        # Use chatbot
         Permission.CHAT_USE,            # Primary function: Chat
         Permission.CHAT_VIEW_OWN,       # View own chat history
+        Permission.ANALYTICS_VIEW,      # Dashboard stats
     ],
     UserRole.STUDENT: [
         # Student: Chat only with shared datasets
@@ -160,3 +161,12 @@ class LoginRequest(BaseModel):
     """Login request schema"""
     email: EmailStr
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=16)
+    new_password: str = Field(..., min_length=6)

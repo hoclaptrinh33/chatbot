@@ -33,3 +33,7 @@ docling>=2.0.0
 easyocr
 onnxruntime>=1.17.0
 
+# === VOICE DEPENDENCIES ===
+edge-tts>=6.1.9
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

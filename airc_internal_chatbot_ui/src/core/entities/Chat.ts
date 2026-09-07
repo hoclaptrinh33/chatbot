@@ -10,16 +10,21 @@ export interface ChatMessage {
     timestamp?: number | string;
     created_at?: string; // From backend
     session_id?: string;
+    sources?: DatasetSearchResult[];
+    feedback?: 'up' | 'down' | null;
+    latency_ms?: number;
 }
 
 export interface SearchResult {
-    vector_id: number;
+    vector_id: number | string;
     score: number;
     text: string;
     file_id: string;
+    file_name?: string;
     dataset_file_id: string;
     chunk_index: number;
     cite: string;
+    origin?: string;
 }
 
 export interface DatasetSearchResult {
@@ -50,6 +55,7 @@ export interface ChatResponse {
         reranker_used: string | null;
         no_context: boolean;
     };
+    message_id?: string;
 }
 
 export interface ChatError {

@@ -1,0 +1,41 @@
+classDiagram
+    class PrismaClient {
+        +folder
+        +file
+        +invoice
+        +broker
+        +aiTask
+    }
+    class FileFolderController {
+        +uploadFile(req, res)
+        +getFolderDetails(req, res)
+    }
+    class FileFolderService {
+        +saveFileMetadata()
+        +getFilesByFolder()
+    }
+    class InvoiceController {
+        +getInvoiceData(req, res)
+        +updateInvoiceData(req, res)
+    }
+    class InvoiceService {
+        +saveExtractedInvoice()
+        +calculateTaxGST()
+        +convertToSGD()
+    }
+    class AiTaskController {
+        +triggerExtraction(req, res)
+        +getTaskStatus(req, res)
+    }
+    class AiService {
+        +submitToAiEngine()
+        +pollTaskStatus()
+    }
+
+    FileFolderController --> FileFolderService
+    InvoiceController --> InvoiceService
+    AiTaskController --> AiService
+    
+    FileFolderService --> PrismaClient
+    InvoiceService --> PrismaClient
+    AiService --> PrismaClient

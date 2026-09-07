@@ -210,6 +210,15 @@ class ChunkRepository(BaseRepository):
         return chunks
 
 
+    _KEYWORD_STOPWORDS = {
+        "hãy", "về", "của", "là", "và", "cho", "trong", "một", "các", "này",
+        "được", "có", "không", "tôi", "bạn", "anh", "chị", "câu", "hỏi",
+        "xin", "vui", "lòng", "thì", "nếu", "như", "với", "tại", "đó",
+        "đây", "khi", "để", "hay", "hoặc", "gì", "nào", "ai", "rằng",
+        "the", "a", "an", "of", "to", "in", "on", "for", "is", "are",
+        "please", "tell", "me", "about",
+    }
+
     async def search_by_text(
         self, 
         query: str, 
@@ -217,30 +226,33 @@ class ChunkRepository(BaseRepository):
         limit: int = 5
     ) -> List[dict]:
         """Tìm kiếm chunks bằng Text Regex (Fallback)"""
-        # Advanced: Split query into keywords for AND match (mimics Google search)
-        # "Đề cương thực tập" -> match "Đề" AND "cương" AND "thực" AND "tập"
-        # Handles "Đề cương chi tiết thực tập"
-        keywords = query.strip().split()
-        if not keywords:
-             return []
-             
-        regex_conditions = [
-            {"text": {"$regex": re.escape(word), "$options": "i"}} 
-            for word in keywords 
-            if len(word) > 1 # Ignore single chars to be safe? Or keep all
+        raw_words = [w.strip(".,?!:;\"'()[]") for w in query.strip().split()]
+        keywords = [
+            w for w in raw_words
+            if len(w) > 1 and w.lower() not in self._KEYWORD_STOPWORDS
         ]
-        
-        if not regex_conditions:
-            # Only single chars? fallback to full query
-            regex_conditions = [{"text": {"$regex": re.escape(query), "$options": "i"}}]
-            
-        filter_doc = {
-            "dataset_file_id": {"$in": dataset_file_ids},
-            "$and": regex_conditions
-        }
-        
-        cursor = self.collection.find(filter_doc).limit(limit)
-        docs = await cursor.to_list(length=limit)
+        if not keywords:
+            keywords = [w for w in raw_words if len(w) > 1] or [query.strip()]
+        if not keywords or not any(keywords):
+            return []
+
+        base = {"dataset_file_id": {"$in": dataset_file_ids}}
+        and_conditions = [
+            {"text": {"$regex": re.escape(word), "$options": "i"}}
+            for word in keywords
+        ]
+        docs = await self.collection.find({**base, "$and": and_conditions}).limit(limit).to_list(length=limit)
+        if docs:
+            return self.serialize_docs(docs)
+
+        # Câu hỏi kiểu "Hãy giới thiệu về AIRC" không xuất hiện nguyên văn trong tài liệu
+        or_conditions = [
+            {"text": {"$regex": re.escape(word), "$options": "i"}}
+            for word in keywords
+            if len(word) >= 3
+        ]
+        if or_conditions:
+            docs = await self.collection.find({**base, "$or": or_conditions}).limit(limit).to_list(length=limit)
         return self.serialize_docs(docs)
     
     async def get_by_dataset_file(

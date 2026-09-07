@@ -27,6 +27,7 @@ export interface ChatbotConfig {
     // 🤖 LLM GENERATION SETTINGS
     // ═══════════════════════════════════════════════════════════════
     model?: string;
+    api_base_url?: string;
     api_key?: string;
     temperature?: number;
     max_tokens?: number;

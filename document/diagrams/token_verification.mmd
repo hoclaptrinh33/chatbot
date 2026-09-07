@@ -1,0 +1,51 @@
+sequenceDiagram
+ autonumber
+ participant UI as UI (coreClient)
+ participant Core as Core Service
+ participant Dep as dependencies.py
+ participant Auth as Auth Service
+ participant Logic as Business Logic
+
+ Note over UI,Logic: Mọi request đến Core Service đều qua luồng này
+
+ UI->>+Core: GET /api/v1/chatbots<br/>Header: Authorization: Bearer eyJ...
+
+ Core->>+Dep: get_current_user(authorization)
+
+ Note over UI,Logic: Extract token từ header
+
+ Dep->>Dep: token = authorization.split(" ")[1]
+
+ Note over UI,Logic: Gọi Auth Service verify endpoint
+
+ Dep->>+Auth: POST /api/auth/verify<br/>Body: {"token": "eyJ..."}
+
+ Auth->>Auth: JWTService.decode_token(token)
+
+ alt Token invalid hoặc hết hạn
+ Auth-->>Dep: 401 "Token invalid"
+ Dep-->>Core: HTTPException 401
+ Core-->>UI: 401 Unauthorized
+ else Token hợp lệ
+ Auth-->>-Dep: 200 {<br/> id: "user123",<br/> email: "a@b.com",<br/> role: "teacher",<br/> is_active: true<br/>}
+
+ Note over UI,Logic: Map response thành User model
+
+ Dep->>Dep: User(<br/> user_id=id,<br/> email=email,<br/> role=UserRole(role)<br/>)
+
+ Dep-->>-Core: User object
+
+ Note over UI,Logic: Permission check (nếu cần)
+
+ Core->>Core: require_permission(Permission.XXX)
+
+ alt Admin role
+ Core->>Core: Bypass (admin có mọi quyền)
+ else Không phải admin
+ Core->>Core: Check role có permission?
+ end
+
+ Core->>+Logic: Xử lý business logic
+ Logic-->>-Core: Result
+ Core-->>-UI: Response data
+ end

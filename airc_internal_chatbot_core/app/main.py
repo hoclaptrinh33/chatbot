@@ -2,12 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from app.core import settings, connect_to_mongo, close_mongo_connection
+from app.core.cors import resolve_cors_origins
 from app.api.v1 import chat, datasets, files
-from app.api.v1 import sessions, chatbots, stats
-from app.services.embedding_service import embedding_service
-from app.services.rerank_service import rerank_service
+from app.api.v1 import sessions, chatbots, stats, voice, settings as system_settings
 from app.services.llm_service import llm_service
 
 logging.basicConfig(level=logging.INFO)
@@ -19,25 +19,26 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] Connecting to MongoDB...")
     await connect_to_mongo()
     logger.info("[STARTUP] MongoDB connected")
-    
-    # Warmup: Preload AI models to prevent cold start
-    logger.info("[STARTUP] Preloading AI models (Embedding, Reranker)...")
+
+    # Heavy embedding/rerank models stay lazy on the API process.
+    # Set PRELOAD_MODELS=true on the worker (or a dedicated inference box).
+    if os.getenv("PRELOAD_MODELS", "false").lower() in {"1", "true", "yes"}:
+        logger.info("[STARTUP] PRELOAD_MODELS=true — loading embedding/reranker")
+        try:
+            from app.services.embedding_service import embedding_service
+            from app.services.rerank_service import rerank_service
+            embedding_service.preload_models()
+            rerank_service.preload_models()
+            logger.info("[STARTUP] Embedding and reranker preloaded")
+        except Exception as e:
+            logger.error(f"[STARTUP] Model preload failed: {e} — first request will be slower")
+    else:
+        logger.info("[STARTUP] Skipping model preload (PRELOAD_MODELS!=true)")
+
     try:
-        # Preload embedding model
-        embedding_service.preload_models()
-        logger.info("[STARTUP] ✓ Embedding models loaded")
-        
-        # Preload reranker model
-        rerank_service.preload_models()
-        logger.info("[STARTUP] ✓ Reranker models loaded")
-        
-        # Configure LLM service (just API key check, no model download)
         llm_service._configure()
-        logger.info("[STARTUP] ✓ LLM service configured")
-        
-        logger.info("[STARTUP] 🚀 All AI models ready - Cold start resolved!")
     except Exception as e:
-        logger.error(f"[STARTUP] ⚠️ Model preload failed: {e} - First request will be slower")
+        logger.warning(f"[STARTUP] LLM configure skipped: {e}")
     
     yield
     
@@ -54,10 +55,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=resolve_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
 )
 
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
@@ -66,6 +67,8 @@ app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["Sessions"])
 app.include_router(chatbots.router, prefix="/api/v1/chatbots", tags=["Chatbots"])
 app.include_router(stats.router, prefix="/api/v1/stats", tags=["Statistics"])
+app.include_router(voice.router, prefix="/api/v1/voice", tags=["Voice"])
+app.include_router(system_settings.router, prefix="/api/v1/settings", tags=["Settings"])
 
 # Mount static folder cho uploads (phục vụ ảnh bóc tách từ tài liệu)
 import os

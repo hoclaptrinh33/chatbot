@@ -1,0 +1,85 @@
+sequenceDiagram
+ autonumber
+ participant UI as UI
+ participant Core as Core Service
+ participant DB as MongoDB
+ participant Redis as Redis Queue
+ participant Worker as RQ Worker
+ participant Job as ingest.py
+ participant Process as ProcessingService
+ participant Disk as Local Disk
+ participant Embed as EmbeddingService
+ participant Qdrant as Qdrant
+
+ Note over UI,Qdrant: PHASE 1: Thêm file vào dataset
+
+ UI->>+Core: POST /api/v1/datasets/{dataset_id}/files<br/>{file_ids: ["file123"]}
+
+ Core->>+DB: dataset_files.insert_one({<br/> dataset_id,<br/> file_id,<br/> status: "Pending"<br/>})
+ DB-->>-Core: dataset_file_id
+
+ Note over UI,Qdrant: PHASE 2: Queue background job
+
+ Core->>+Redis: queue.enqueue(<br/> "process_dataset_file_job",<br/> dataset_id,<br/> dataset_file_id<br/>)
+ Redis-->>-Core: job_id
+
+ Core-->>-UI: 200 {status: "Pending"}
+
+ Note over UI,Qdrant: PHASE 3: Worker xử lý (Background)
+
+ Redis->>+Worker: Dequeue job
+ Worker->>+Job: process_dataset_file_job()
+
+ Job->>Job: Connect MongoDB
+ Job->>+Process: process_dataset_file(dataset_id, df_id)
+
+ Note over UI,Qdrant: Step 1: Update status CHUNKING
+
+ Process->>DB: dataset_files.update(status: "Chunking")
+
+ Note over UI,Qdrant: Step 2: Lấy thông tin file
+
+ Process->>DB: dataset_files.find_one()
+ Process->>DB: files.find_one({_id: file_id})
+
+ Note over UI,Qdrant: Step 3: Đọc file từ disk
+
+ Process->>+Disk: aiofiles.open(path, 'rb')
+ Disk-->>-Process: binary content
+
+ Note over UI,Qdrant: Step 4: Extract text
+
+ Process->>Process: PDF → pypdf.PdfReader<br/>DOCX → python-docx<br/>TXT → decode utf-8
+
+ Note over UI,Qdrant: Step 5: Chunking
+
+ Process->>Process: RecursiveCharacterTextSplitter<br/>chunk_size=1024<br/>chunk_overlap=100
+ Process->>Process: chunks_text = [chunk1, chunk2, ...]
+
+ Note over UI,Qdrant: Step 6: Update status EMBEDDING
+
+ Process->>DB: dataset_files.update(status: "Embedding")
+
+ Note over UI,Qdrant: Step 7: Generate embeddings
+
+ Process->>+Embed: embed_texts(chunks_text)
+ Note right of Embed: sentence-transformers<br/>paraphrase-multilingual
+ Embed-->>-Process: embeddings [[768], [768], ...]
+
+ Note over UI,Qdrant: Step 8: Lưu chunks vào MongoDB
+
+ Process->>+DB: chunks.insert_many([<br/> {dataset_id, file_id, text, vector},<br/> ...<br/>])
+ DB-->>-Process: chunk_ids
+
+ Note over UI,Qdrant: Step 9: Index vectors vào Qdrant
+
+ Process->>+Qdrant: upsert(collection=dataset_{id},<br/> points=[{id, vector, payload}])
+ Qdrant-->>-Process: OK
+
+ Note over UI,Qdrant: Step 10: Update status DONE
+
+ Process->>DB: dataset_files.update(<br/> status: "Done",<br/> chunk_count: N,<br/> is_enabled: true<br/>)
+
+ Process-->>-Job: OK
+ Job-->>-Worker: Job completed
+ Worker-->>-Redis: ACK

@@ -8,6 +8,7 @@ import { Chatbot } from '@/types/chatbot';
 import { Button, Modal, Input, Form, Select, Dropdown, MenuProps, notification } from 'antd';
 import { PlusOutlined, MoreOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import ShareDatasetModal from '@/components/Datasets/ShareDatasetModal';
 
 const DatasetListPage = () => {
     const router = useRouter();
@@ -17,6 +18,7 @@ const DatasetListPage = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
     const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null);
+    const [shareDataset, setShareDataset] = useState<Dataset | null>(null);
     const [form] = Form.useForm();
     const [renameForm] = Form.useForm();
     const [search, setSearch] = useState('');
@@ -133,6 +135,11 @@ const DatasetListPage = () => {
                     renameForm.setFieldsValue({ name: dataset.name });
                     setIsRenameModalOpen(true);
                 }
+            },
+            {
+                key: 'share',
+                label: 'Chia sẻ với sinh viên',
+                onClick: () => setShareDataset(dataset),
             },
             {
                 key: 'delete',
@@ -267,6 +274,14 @@ const DatasetListPage = () => {
                     </div>
                 </Form>
             </Modal>
+
+            <ShareDatasetModal
+                datasetId={shareDataset?.id || ''}
+                open={!!shareDataset}
+                initialSharedWith={shareDataset?.shared_with || []}
+                onClose={() => setShareDataset(null)}
+                onSuccess={fetchDatasets}
+            />
 
             {/* Rename Modal */}
             <Modal

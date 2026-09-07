@@ -77,8 +77,8 @@ export default function CreatePermissionPage() {
                         >
                             <Form.Item
                                 name="name"
-                                label="Ten Permission"
-                                rules={[{ required: true, message: 'Vui long nhap ten permission' }]}
+                                label="Tên Permission"
+                                rules={[{ required: true, message: 'Vui lòng nhập tên permission' }]}
                                 help="Vi du: dataset:create, chatbot:use"
                             >
                                 <Input placeholder="Nhap ten permission unique" />
@@ -87,8 +87,8 @@ export default function CreatePermissionPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <Form.Item
                                     name="resource"
-                                    label="Resource (Tai nguyen)"
-                                    rules={[{ required: true, message: 'Vui long chon resource' }]}
+                                    label="Resource (Tài nguyên)"
+                                    rules={[{ required: true, message: 'Vui lòng chọn resource' }]}
                                 >
                                     <Select>
                                         <Select.Option value="auth">Auth System</Select.Option>
@@ -103,7 +103,7 @@ export default function CreatePermissionPage() {
                                 <Form.Item
                                     name="action"
                                     label="Action (Hanh dong)"
-                                    rules={[{ required: true, message: 'Vui long chon action' }]}
+                                    rules={[{ required: true, message: 'Vui lòng chọn action' }]}
                                 >
                                     <Select>
                                         <Select.Option value="create">Create</Select.Option>

@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     
     # Upload
     max_upload_size: int = 209715200  # 200MB
+
+    # CORS + model warmup
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    preload_models: bool = False
+
+    # Chat latency knobs (test/debug)
+    semantic_cache_enabled: bool = True
+    chat_fast_path: bool = False
+
+    # Live-mode Edge-TTS voice
+    tts_voice: str = "vi-VN-HoaiMyNeural"
     
     class Config:
         env_file = ".env"

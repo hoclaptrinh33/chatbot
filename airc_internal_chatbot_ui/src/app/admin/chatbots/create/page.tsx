@@ -18,14 +18,15 @@ import {
     Tooltip,
     Alert,
     Tag,
-    AutoComplete,
     Switch
 } from 'antd';
 import { SaveOutlined, ArrowLeftOutlined, QuestionCircleOutlined, LockOutlined, HistoryOutlined } from '@ant-design/icons';
 import MainLayout from '@/components/Layout/MainLayout';
 import AuthGuard from '@/components/Auth/AuthGuard';
+import LlmModelSelect from '@/components/Admin/LlmModelSelect';
 import { chatbotService } from '@/services/chatbotService';
 import datasetService from '@/services/datasetService';
+import { llmModelsHint, pickModelForProvider, useLlmModels } from '@/hooks/useLlmModels';
 import { ChatbotCreate } from '@/types/chatbot';
 import { Dataset } from '@/core/entities/Dataset';
 import { useRouter } from 'next/navigation';
@@ -39,32 +40,51 @@ export default function CreateChatbotPage() {
     const [loading, setLoading] = useState(false);
     const [datasets, setDatasets] = useState<Dataset[]>([]);
     const [rolesWithChatbot, setRolesWithChatbot] = useState<string[]>([]);
-    const [llmModels, setLlmModels] = useState<string[]>([]);
     const [form] = Form.useForm();
 
     const noContextBehavior = Form.useWatch('no_context_behavior', form);
     const enableHistoryCompression = Form.useWatch('enable_history_compression', form);
+    const apiBaseUrl = Form.useWatch('api_base_url', form);
+    const apiKey = Form.useWatch('api_key', form);
+    const { models: llmModels, defaultModel, loading: loadingModels, error: modelsError } = useLlmModels({
+        apiBaseUrl,
+        apiKey,
+    });
+    const providerKeyRef = React.useRef<string | undefined>(undefined);
 
     useEffect(() => {
         fetchDatasets();
         fetchRolesWithChatbot();
-        fetchLLMModels();
     }, []);
 
-    const fetchLLMModels = async () => {
-        try {
-            const data = await chatbotService.getLLMModels();
-            setLlmModels(data.models);
-            if (data.default_model) {
-                form.setFieldsValue({
-                    model: data.default_model
-                });
-            }
-        } catch (error) {
-            console.error("Failed to fetch LLM models", error);
-            setLlmModels([]);
+    useEffect(() => {
+        if (!llmModels.length) return;
+        const providerKey = `${(apiBaseUrl || '').trim()}|${(apiKey || '').trim()}`;
+        const providerChanged = providerKeyRef.current !== providerKey;
+        providerKeyRef.current = providerKey;
+        const nextModel = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('model'),
+            defaultModel,
+            providerChanged,
+        );
+        const nextCompression = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('compression_model'),
+            nextModel || defaultModel,
+            providerChanged,
+        );
+        const patch: Record<string, string> = {};
+        if (nextModel && nextModel !== form.getFieldValue('model')) {
+            patch.model = nextModel;
         }
-    };
+        if (nextCompression && nextCompression !== form.getFieldValue('compression_model')) {
+            patch.compression_model = nextCompression;
+        }
+        if (Object.keys(patch).length) {
+            form.setFieldsValue(patch);
+        }
+    }, [llmModels, defaultModel, apiBaseUrl, apiKey, form]);
 
     const fetchDatasets = async () => {
         try {
@@ -104,12 +124,13 @@ export default function CreateChatbotPage() {
                     // Retrieval
                     search_mode: (values.search_mode as 'hybrid' | 'vector' | 'keyword') || 'hybrid',
                     top_k: (values.top_k as number) || 5,
-                    similarity_threshold: (values.similarity_threshold as number) ?? 0.5,
+                    similarity_threshold: (values.similarity_threshold as number) ?? 0.25,
                     // Reranking
                     reranker: (values.reranker as string) || 'Semantic',
                     rerank_top_n: (values.rerank_top_n as number) || undefined,
                     // LLM Generation
                     model: (values.model as string) || undefined,
+                    api_base_url: (values.api_base_url as string) || undefined,
                     api_key: (values.api_key as string) || undefined,
                     temperature: (values.temperature as number) ?? 0.7,
                     max_tokens: (values.max_tokens as number) || 2048,
@@ -225,17 +246,17 @@ export default function CreateChatbotPage() {
                                 embedding_model: 'vietnamese-sbert',
                                 search_mode: 'hybrid',
                                 top_k: 5,
-                                similarity_threshold: 0.5,
+                                similarity_threshold: 0.25,
                                 reranker: 'ms-marco-MiniLM-L-6-v2',
                                 model: undefined,
                                 temperature: 0.7,
                                 max_tokens: 2048,
                                 no_context_behavior: 'reject',
-                                enable_query_reformulation: true,
-                                enable_history_compression: true,
+                                enable_query_reformulation: false,
+                                enable_history_compression: false,
                                 history_limit: 3,
                                 buffer_limit: 2,
-                                compression_model: 'gemini-1.5-flash',
+                                compression_model: undefined,
                             }}
                         >
                             {/* SECTION 1: THÔNG TIN CƠ BẢN */}
@@ -382,7 +403,7 @@ export default function CreateChatbotPage() {
                                                 name="similarity_threshold"
                                                 label={<>Ngưỡng tương đồng <Tooltip title="0.0 - 1.0"><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></>}
                                             >
-                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.3: '0.3', 0.5: '0.5', 0.7: '0.7' }} />
+                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.25: '0.25', 0.5: '0.5', 0.7: '0.7' }} />
                                             </Form.Item>
                                         </Col>
                                     </Row>
@@ -466,23 +487,42 @@ export default function CreateChatbotPage() {
                                     <span style={{ fontWeight: 500 }}>Sinh câu trả lời từ AI</span>
                                 </div>
 
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                    message="Endpoint và API key phải cùng nhà cung cấp"
+                                    description="Chỉ nhập API key thì key vẫn gửi tới endpoint hệ thống — Gemini key không chạy trên Ollama và ngược lại. Muốn dùng provider khác, nhập cả Endpoint và API Key của provider đó."
+                                />
+
                                 <Form.Item
-                                    name="model"
-                                    label="AI Model"
-                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                    name="api_base_url"
+                                    label="LLM Endpoint riêng"
+                                    extra="Để trống = dùng endpoint trong Cài đặt hệ thống. Ví dụ: https://api.openai.com/v1"
+                                    rules={[
+                                        {
+                                            pattern: /^$|^https?:\/\/.+/i,
+                                            message: 'Endpoint phải bắt đầu bằng http:// hoặc https://',
+                                        },
+                                    ]}
                                 >
-                                    <AutoComplete
+                                    <Input
                                         size="large"
-                                        placeholder="Chọn từ danh sách hoặc tự nhập tên model (VD: gemma-4-26b-qat, qwen-3.6-35b...)"
-                                        options={llmModels.map(m => ({ value: m, label: m }))}
-                                        filterOption={(inputValue, option) =>
-                                            option!.value.toUpperCase().indexOf(inputValue.toUpperCase()) !== -1
-                                        }
+                                        placeholder="Để trống = endpoint hệ thống"
                                     />
                                 </Form.Item>
 
                                 <Form.Item name="api_key" label="API Key riêng (tùy chọn)">
-                                    <Input.Password placeholder="Để trống = dùng key hệ thống" size="large" />
+                                    <Input.Password placeholder="Để trống = dùng key hệ thống (cùng endpoint hệ thống)" size="large" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    name="model"
+                                    label="AI Model"
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                >
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
 
                                 <Row gutter={24}>
@@ -572,13 +612,10 @@ export default function CreateChatbotPage() {
                                 <Form.Item 
                                     name="compression_model" 
                                     label="AI Model dùng để tóm tắt/viết lại"
-                                    rules={[{ required: true, message: 'Vui lòng chọn model tóm tắt' }]}
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập model tóm tắt' }]}
                                 >
-                                    <Select size="large">
-                                        <Option value="gemini-1.5-flash">gemini-1.5-flash (Khuyến nghị - Nhanh & Rẻ)</Option>
-                                        <Option value="gemini-1.5-pro">gemini-1.5-pro (Tốt hơn cho tóm tắt phức tạp)</Option>
-                                        <Option value="qwen-3.6-35b">qwen-3.6-35b (Local model)</Option>
-                                    </Select>
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
                             </Card>
 

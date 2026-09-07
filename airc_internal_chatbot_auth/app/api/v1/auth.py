@@ -7,11 +7,13 @@ from app.api.dependencies import (
     get_auth_service, 
     get_current_user, 
     get_admin_user,
-    get_admin_user,
+    get_teacher_or_admin,
     require_permission,
     get_rbac_service
 )
 from app.services.auth_service import AuthService
+from app.services.password_reset_service import PasswordResetService
+from app.core.database import get_database
 from app.models.user import (
     UserCreate,
     UserUpdate,
@@ -20,7 +22,10 @@ from app.models.user import (
     Token,
     TokenData,
     UserInDB,
-    Permission
+    Permission,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    UserRole,
 )
 from app.core.rate_limiter import rate_limiter
 from app.core.validators import InputValidator
@@ -250,16 +255,44 @@ async def verify_token(
         )
 
 
+def get_password_reset_service(
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> PasswordResetService:
+    return PasswordResetService(
+        db=get_database(),
+        user_repo=auth_service.user_repo,
+        hash_password=AuthService.hash_password,
+    )
+
+
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 async def forgot_password(
-    payload: dict,
-    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+    payload: ForgotPasswordRequest,
+    reset_service: Annotated[PasswordResetService, Depends(get_password_reset_service)],
 ):
     """
-    Yêu cầu đặt lại mật khẩu (Dummy endpoint)
+    Yêu cầu đặt lại mật khẩu. Luôn trả cùng message để không lộ email tồn tại.
     """
-    # TODO: Implement send email logic
-    return {"message": "Password reset email sent"}
+    await reset_service.request_reset(str(payload.email))
+    return {"message": "Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    payload: ResetPasswordRequest,
+    reset_service: Annotated[PasswordResetService, Depends(get_password_reset_service)],
+):
+    is_valid, password_error = InputValidator.validate_password(payload.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=password_error)
+
+    ok = await reset_service.reset_password(payload.token, payload.new_password)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.",
+        )
+    return {"message": "Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại."}
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(
@@ -302,26 +335,60 @@ async def get_my_permissions(
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
-    current_user: Annotated[UserInDB, Depends(get_admin_user)],
-    auth_service: Annotated[AuthService, Depends(get_auth_service)]
+    current_user: Annotated[UserInDB, Depends(get_teacher_or_admin)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    role: Optional[str] = None,
 ):
     """
-    Lấy danh sách tất cả users (Admin only)
-    
-    Returns:
-        List of users
+    Admin: list all users (optional role filter).
+    Teacher: students only.
     """
+    requested_role = (role or "").lower().strip() or None
+    current_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+
+    if current_role != "admin":
+        requested_role = "student"
+
     users = await auth_service.get_all_users()
-    return [
-        UserResponse(
+    result = []
+    for u in users:
+        u_role = u.role.value if hasattr(u.role, "value") else str(u.role)
+        if requested_role and u_role != requested_role:
+            continue
+        result.append(UserResponse(
             id=u.id,
             email=u.email,
             full_name=u.full_name,
             role=u.role,
             is_active=u.is_active,
             created_at=u.created_at
-        ) for u in users
-    ]
+        ))
+    return result
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: str,
+    current_user: Annotated[UserInDB, Depends(get_teacher_or_admin)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+):
+    current_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    user = await auth_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User không tồn tại")
+
+    user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if current_role != "admin" and user_role != "student" and str(current_user.id) != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Không có quyền xem user này")
+
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+    )
     
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_admin(

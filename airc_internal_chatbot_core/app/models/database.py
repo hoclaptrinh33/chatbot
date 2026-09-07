@@ -13,3 +13,5 @@ class Collections:
     SESSIONS = "sessions"
     USERS = "users"
     CHATBOTS = "chatbots"  # Chatbot configurations with RBAC
+    FEEDBACK = "message_feedback"
+    SYSTEM_SETTINGS = "system_settings"  # Singleton runtime LLM config

@@ -79,7 +79,10 @@ const useChatStore = create<ChatState>()(
             selectSession: async (sessionId: string) => {
                 set({ loading: true, currentSessionId: sessionId });
                 try {
-                    const messages = await chatService.getMessages(sessionId);
+                    const messages = (await chatService.getMessages(sessionId)).map((msg) => ({
+                        ...msg,
+                        timestamp: msg.timestamp || msg.created_at,
+                    }));
                     set({ messages, loading: false });
                 } catch (error) {
                     console.error(error);
@@ -156,42 +159,66 @@ const useChatStore = create<ChatState>()(
                     // NOTE: Backend chat_service already saves user & assistant messages
                     // Do NOT call addMessage here to avoid duplicates!
 
-                    // Use only last 10 messages for context
                     const historyContext = newMessages.slice(-10);
-                    console.log('📚 [ChatStore] History context:', historyContext.length, 'messages');
-
-                    // Call RAG API (backend will save both user and bot messages)
-                    console.log('🤖 [ChatStore] Calling askQuestion API...', {
-                        question: question.substring(0, 50) + '...',
-                        datasetIds: datasetIds.length,
-                        chatbotId: chatbotId,
-                        historyLength: historyContext.length
-                    });
-
-                    const response = await chatService.askQuestion({
-                        question,
-                        dataset_ids: datasetIds.length > 0 ? datasetIds : undefined,
-                        chatbot_id: chatbotId || undefined,
-                        history: historyContext,
-                        session_id: sessionId
-                    });
-                    console.log('✅ [ChatStore] Got response from API:', response.answer.substring(0, 100) + '...');
-                    console.log('📊 [ChatStore] Debug metrics:', response.debug);
-
-                    // Add assistant response to UI
+                    const assistantLocalId = `pending-${Date.now()}`;
                     set((state) => ({
                         messages: [
                             ...state.messages,
                             {
                                 role: 'assistant',
-                                content: response.answer,
-                                id: Date.now().toString(),
-                                timestamp: new Date().toISOString()
+                                content: '',
+                                id: assistantLocalId,
+                                timestamp: new Date().toISOString(),
+                                session_id: sessionId,
                             }
                         ],
-                        loading: false,
-                        lastDebugMetrics: response.debug || null
                     }));
+
+                    await chatService.askQuestionStream({
+                        question,
+                        dataset_ids: datasetIds.length > 0 ? datasetIds : undefined,
+                        chatbot_id: chatbotId || undefined,
+                        history: historyContext,
+                        session_id: sessionId
+                    }, {
+                        onToken: (text) => {
+                            set((state) => ({
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? { ...msg, content: `${msg.content}${text}` }
+                                        : msg
+                                ),
+                            }));
+                        },
+                        onDone: (response) => {
+                            set((state) => ({
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? {
+                                            ...msg,
+                                            id: response.message_id || assistantLocalId,
+                                            content: response.answer || msg.content,
+                                            sources: response.sources,
+                                            session_id: sessionId,
+                                        }
+                                        : msg
+                                ),
+                                loading: false,
+                                lastDebugMetrics: response.debug || null,
+                            }));
+                        },
+                        onError: (detail) => {
+                            set((state) => ({
+                                loading: false,
+                                error: detail,
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? { ...msg, content: detail || 'Xin lỗi, tôi đã gặp sự cố khi xử lý yêu cầu của bạn.' }
+                                        : msg
+                                ),
+                            }));
+                        },
+                    });
                 } catch (error: unknown) {
                     const err = error as AxiosError<{ detail: string }>;
                     console.error('Chat error:', err);

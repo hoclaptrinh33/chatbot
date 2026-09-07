@@ -1,0 +1,77 @@
+sequenceDiagram
+ autonumber
+ participant U as User
+ participant UI as LoginForm.tsx
+ participant Store as authStore.ts
+ participant Client as authClient.ts
+ participant Auth as Auth Service
+ participant JWT as JWTService
+ participant DB as MongoDB (airc_auth_db)
+
+ Note over U,DB: BƯỚC 1: User điền form đăng nhập
+
+ U->>UI: Nhập email, password
+ UI->>UI: Client-side validation
+ UI->>Store: login(email, password)
+
+ Note over U,DB: BƯỚC 2: Zustand store gọi authService
+
+ Store->>Store: setLoading(true)
+ Store->>Client: POST /login {email, password}
+
+ Note over U,DB: BƯỚC 3: HTTP Request đến Auth Service
+
+ Client->>+Auth: POST /api/auth/login<br/>Body: {email, password}
+
+ Auth->>Auth: InputValidator.validate_email()
+ Auth->>Auth: RateLimiter.is_blocked()
+
+ Auth->>+DB: users.find_one({email: email})
+ DB-->>-Auth: user document hoặc null
+
+ alt Email không tồn tại
+ Auth-->>Client: 401 "Email không tồn tại"
+ Client-->>Store: throw Error
+ Store->>Store: setError(message)
+ Store-->>UI: error state
+ UI-->>U: Hiển thị thông báo lỗi
+ else Email tồn tại
+ Note over U,DB: BƯỚC 4: Verify password với pbkdf2_sha256
+
+ Auth->>Auth: pbkdf2_sha256.verify(password, hashed)
+
+ alt Password sai
+ Auth-->>Client: 401 "Password không đúng"
+ Client-->>Store: throw Error
+ Store-->>UI: Hiển thị lỗi
+ else Password đúng
+ Note over U,DB: BƯỚC 5: Tạo JWT Token
+
+ Auth->>+JWT: create_access_token({<br/> user_id,<br/> email,<br/> role<br/>})
+ JWT-->>-Auth: "eyJhbGciOiJIUzI1NiIs..."
+
+ Auth-->>-Client: 200 {access_token: "eyJ..."}
+
+ Note over U,DB: BƯỚC 6: Lưu token và cập nhật state
+
+ Client-->>Store: {access_token}
+ Store->>Store: localStorage.setItem("token", token)
+ Store->>Store: setToken(token)
+ Store->>Store: setAuthenticated(true)
+ Store->>Store: chatStore.resetStore()
+
+ Note over U,DB: BƯỚC 7: Fetch user info (background)
+
+ Store->>Client: GET /me (với Bearer token)
+ Client->>Auth: GET /api/auth/me
+ Auth->>Auth: decode JWT → user_id
+ Auth->>DB: users.find_one({_id: user_id})
+ DB-->>Auth: user document
+ Auth-->>Client: {id, email, full_name, role, permissions}
+ Client-->>Store: user data
+ Store->>Store: setUser(user)
+
+ Store-->>UI: isAuthenticated = true
+ UI-->>U: Redirect to /dashboard
+ end
+ end

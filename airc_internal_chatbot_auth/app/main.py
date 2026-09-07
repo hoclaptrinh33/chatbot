@@ -64,14 +64,20 @@ app = FastAPI(
 # MIDDLEWARE STACK (order matters - last added = first executed)
 # ═══════════════════════════════════════════════════════════════
 
-# 1. CORS middleware (must be first for preflight requests)
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+# 1. CORS — never use "*" with credentials
+_raw_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip() and o.strip() != "*"]
+if _raw_origins:
+    allowed_origins = _raw_origins
+elif IS_PRODUCTION:
+    allowed_origins = ["https://ragairc.neovort.shop"]
+else:
+    allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if IS_PRODUCTION else ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
     expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"]
 )
 

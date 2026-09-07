@@ -79,6 +79,105 @@ class BaseSplitter:
             start = next_start
         return chunks
 
+    def _split_semantic_blocks(self, text: str) -> List[str]:
+        """Giữ list, bảng và đoạn văn thành khối nguyên, không cắt từng dòng bullet."""
+        list_re = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+\S")
+        heading_re = re.compile(r"^#{1,6}\s+")
+        blocks: List[str] = []
+        buf: List[str] = []
+        kind: Optional[str] = None
+
+        def flush() -> None:
+            nonlocal kind
+            if buf:
+                blocks.append("\n".join(buf).rstrip())
+                buf.clear()
+            kind = None
+
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                flush()
+                continue
+            if line.count("|") >= 2:
+                new_kind = "table"
+            elif heading_re.match(stripped):
+                new_kind = "heading"
+            elif list_re.match(line):
+                new_kind = "list"
+            else:
+                new_kind = "para"
+
+            if kind is None:
+                kind = new_kind
+                buf.append(line)
+                continue
+            if new_kind == "heading":
+                flush()
+                kind = "heading"
+                buf.append(line)
+                continue
+            if kind == "heading" and new_kind in ("list", "para", "table"):
+                kind = new_kind
+                buf.append(line)
+                continue
+            if new_kind == kind and kind in ("list", "table", "para"):
+                buf.append(line)
+                continue
+            flush()
+            kind = new_kind
+            buf.append(line)
+        flush()
+        return [b for b in blocks if b.strip()]
+
+    def _pack_segments(
+        self,
+        segments: List[str],
+        target_size: int,
+        max_size: int,
+    ) -> List[str]:
+        """Gộp các khối nhỏ tới target_size, không vượt max_size."""
+        packed: List[str] = []
+        current: List[str] = []
+        current_len = 0
+
+        for raw in segments:
+            seg = (raw or "").strip()
+            if not seg or self._is_junk_chunk(seg):
+                continue
+            if len(seg) > max_size:
+                if current:
+                    packed.append("\n\n".join(current))
+                    current = []
+                    current_len = 0
+                parts = [
+                    p.strip()
+                    for p in self._split_recursive(
+                        seg, ["\n\n", ". ", "; ", "? ", "! "], max_size
+                    )
+                    if p.strip()
+                ]
+                packed.extend(self._pack_segments(parts, target_size, max_size))
+                continue
+
+            extra = len(seg) + (2 if current else 0)
+            if current and current_len + extra > max_size:
+                packed.append("\n\n".join(current))
+                current = [seg]
+                current_len = len(seg)
+                continue
+            if current and current_len >= target_size and current_len + extra > target_size:
+                packed.append("\n\n".join(current))
+                current = [seg]
+                current_len = len(seg)
+                continue
+            current.append(seg)
+            current_len += extra
+
+        if current:
+            packed.append("\n\n".join(current))
+        return packed
+
 
 class LegalSplitter(BaseSplitter):
     """
@@ -243,15 +342,14 @@ class FinancialSplitter(BaseSplitter):
                 for tc in table_chunks:
                     chunks.append(tc)
             else:
-                # Text thường
-                sub_segs = self._split_recursive(block["content"], ["\n\n", "\n", ". ", "; ", "? ", "! ", ", "], 600)
-                for seg in sub_segs:
-                    if not self._is_junk_chunk(seg):
-                        chunks.append({
-                            "text": seg.strip(),
-                            "is_table": False,
-                            "section_type": "paragraph"
-                        })
+                blocks = self._split_semantic_blocks(block["content"])
+                packed = self._pack_segments(blocks, target_size=900, max_size=1800)
+                for seg in packed:
+                    chunks.append({
+                        "text": seg.strip(),
+                        "is_table": False,
+                        "section_type": "paragraph"
+                    })
         return chunks
 
     def _split_table_by_rows(self, table_text: str, caption: str) -> List[Dict[str, Any]]:
@@ -332,16 +430,15 @@ class AcademicTechnicalSplitter(BaseSplitter):
             placeholders.append((placeholder, cb))
             placeholder_text = placeholder_text.replace(cb, placeholder)
             
-        # Chia nhỏ placeholder_text đệ quy
-        sub_segs = self._split_recursive(placeholder_text, ["\n\n", "\n", ". ", "; ", "? ", "! "], child_size)
-        
+        blocks = self._split_semantic_blocks(placeholder_text)
+        packed = self._pack_segments(blocks, target_size=child_size, max_size=max(child_size * 2, 1800))
+
         chunks = []
-        for seg in sub_segs:
-            # Khôi phục code blocks
+        for seg in packed:
             restored_seg = seg
             for placeholder, cb in placeholders:
                 restored_seg = restored_seg.replace(placeholder, cb)
-                
+
             if not self._is_junk_chunk(restored_seg):
                 chunks.append({
                     "text": restored_seg.strip(),
@@ -354,18 +451,22 @@ class AcademicTechnicalSplitter(BaseSplitter):
 class AdministrativeGeneralSplitter(BaseSplitter):
     """
     Splitter cho văn bản hành chính & chung.
+    Giữ list/heading markdown thành khối, gộp về kích thước mục tiêu thay vì cắt từng dòng.
     """
-    def split_section(self, text: str, heading_path: List[str], child_size: int = 600) -> List[Dict[str, Any]]:
-        # Tách văn bản thường đệ quy
-        sub_segs = self._split_recursive(text, ["\n\n", "\n", ". ", "; ", "? ", "! ", " "], child_size)
+    def split_section(self, text: str, heading_path: List[str], child_size: int = 1000) -> List[Dict[str, Any]]:
+        blocks = self._split_semantic_blocks(text)
+        packed = self._pack_segments(
+            blocks,
+            target_size=child_size,
+            max_size=max(child_size * 2, 1800),
+        )
         chunks = []
-        for seg in sub_segs:
-            if not self._is_junk_chunk(seg):
-                chunks.append({
-                    "text": seg.strip(),
-                    "is_table": False,
-                    "section_type": "paragraph"
-                })
+        for seg in packed:
+            chunks.append({
+                "text": seg.strip(),
+                "is_table": "|" in seg and seg.count("|") >= 2,
+                "section_type": "paragraph"
+            })
         return chunks
 
 

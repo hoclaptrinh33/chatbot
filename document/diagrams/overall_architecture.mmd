@@ -1,0 +1,80 @@
+flowchart TB
+ subgraph BROWSER["Browser"]
+ USER["Người dùng"]
+ end
+
+ subgraph UI["UI Service - Next.js (Port 3000)"]
+ direction TB
+ PAGES["Pages<br/>(App Router)"]
+ COMPONENTS["Components<br/>(React)"]
+ STORES["Stores<br/>(Zustand)"]
+
+ subgraph CLIENTS["HTTP Clients (Axios)"]
+ AUTH_CLIENT["authClient<br/>→ /api/auth"]
+ CORE_CLIENT["coreClient<br/>→ /api/v1"]
+ end
+ end
+
+ subgraph AUTH["Auth Service - FastAPI (Port 8001)"]
+ direction TB
+ AUTH_ROUTES["Routes:<br/>/api/auth/login<br/>/api/auth/register<br/>/api/auth/me<br/>/api/auth/verify"]
+ RBAC_ROUTES["Routes:<br/>/api/rbac/roles<br/>/api/rbac/permissions<br/>/api/rbac/users"]
+ AUTH_SERVICES["Services:<br/>AuthService<br/>JWTService<br/>RBACService"]
+ AUTH_MIDDLEWARE["Middleware:<br/>RateLimit<br/>SecurityHeaders<br/>InputSanitize"]
+ end
+
+ subgraph CORE["Core Service - FastAPI (Port 8000)"]
+ direction TB
+ CORE_ROUTES["Routes:<br/>/api/v1/chat/ask<br/>/api/v1/chatbots<br/>/api/v1/datasets<br/>/api/v1/files<br/>/api/v1/sessions<br/>/api/v1/stats"]
+ CORE_SERVICES["Services:<br/>ChatService<br/>DatasetService<br/>ProcessingService<br/>ChatbotService"]
+
+ subgraph AI_SERVICES["AI Services"]
+ EMBED["EmbeddingService<br/>(sentence-transformers)"]
+ RERANK["RerankService<br/>(cross-encoder)"]
+ LLM["LLMService<br/>(AI)"]
+ end
+ end
+
+ subgraph WORKER["Background Worker (RQ)"]
+ RQ_WORKER["worker.py"]
+ INGEST_JOB["jobs/ingest.py"]
+ end
+
+ subgraph INFRA["Infrastructure"]
+ MONGO_AUTH[("MongoDB<br/>airc_auth_db<br/>- users<br/>- roles<br/>- permissions")]
+ MONGO_CORE[("MongoDB<br/>airc_chatbot<br/>- datasets<br/>- files<br/>- chunks<br/>- chatbots<br/>- sessions")]
+ REDIS[("Redis<br/>- Job Queue<br/>- Semantic Cache")]
+ QDRANT[("Qdrant<br/>Vector DB")]
+ DISK["Local Disk<br/>uploads/"]
+ end
+
+ USER --> PAGES
+ PAGES --> COMPONENTS
+ COMPONENTS --> STORES
+ STORES --> CLIENTS
+
+ AUTH_CLIENT -->|"POST /login<br/>POST /register<br/>GET /me"| AUTH_ROUTES
+ CORE_CLIENT -->|"POST /chat/ask<br/>GET /chatbots<br/>POST /files/upload"| CORE_ROUTES
+
+ AUTH_ROUTES --> AUTH_SERVICES
+ AUTH_SERVICES --> MONGO_AUTH
+ RBAC_ROUTES --> AUTH_SERVICES
+
+ CORE_ROUTES -->|"verify token"| AUTH_ROUTES
+ CORE_ROUTES --> CORE_SERVICES
+ CORE_SERVICES --> AI_SERVICES
+ CORE_SERVICES --> MONGO_CORE
+ CORE_SERVICES --> REDIS
+ CORE_SERVICES --> QDRANT
+ CORE_SERVICES --> DISK
+
+ CORE_SERVICES -->|"enqueue job"| REDIS
+ REDIS -->|"dequeue"| RQ_WORKER
+ RQ_WORKER --> INGEST_JOB
+ INGEST_JOB --> MONGO_CORE
+ INGEST_JOB --> QDRANT
+ INGEST_JOB --> DISK
+
+ style AUTH fill:#ffccbc
+ style CORE fill:#c8e6c9
+ style WORKER fill:#d1c4e9

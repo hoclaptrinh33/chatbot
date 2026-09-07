@@ -1,0 +1,33 @@
+flowchart LR
+ subgraph Request["Incoming Request"]
+ R1["GET /"]
+ R2["POST /api/auth/login"]
+ R3["GET /api/auth/me"]
+ R4["POST /api/auth/verify"]
+ R5["GET /api/rbac/roles"]
+ R6["POST /api/v1/chat/ask"]
+ R7["GET /api/v1/chatbots"]
+ R8["POST /api/v1/files/upload"]
+ end
+
+ subgraph Ingress["Ingress Rules"]
+ RULE1["path: /"]
+ RULE2["path: /api/auth"]
+ RULE3["path: /api/rbac"]
+ RULE4["path: /api/v1"]
+ end
+
+ subgraph Services["Backend Services"]
+ UI["ui-service:3000"]
+ AUTH["auth-service:8001"]
+ CORE["core-service:8000"]
+ end
+
+ R1 --> RULE1 --> UI
+ R2 --> RULE2 --> AUTH
+ R3 --> RULE2 --> AUTH
+ R4 --> RULE2 --> AUTH
+ R5 --> RULE3 --> AUTH
+ R6 --> RULE4 --> CORE
+ R7 --> RULE4 --> CORE
+ R8 --> RULE4 --> CORE

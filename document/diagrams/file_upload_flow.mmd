@@ -1,0 +1,44 @@
+sequenceDiagram
+ autonumber
+ participant UI as UI
+ participant Core as Core Service
+ participant Auth as Auth Service
+ participant FileAPI as files.py
+ participant Disk as Local Disk
+ participant DB as MongoDB
+
+ Note over UI,DB: File Upload (Synchronous)
+
+ UI->>UI: User chọn file (PDF/DOCX/TXT)
+ UI->>UI: Validate file < 200MB
+
+ UI->>+Core: POST /api/v1/files/upload<br/>Content-Type: multipart/form-data<br/>Header: Bearer token
+
+ Core->>+Auth: POST /api/auth/verify {"token": "eyJ..."}
+ Auth-->>-Core: {user_id, role}
+
+ Core->>+FileAPI: upload_file(file, current_user)
+
+ Note over UI,DB: Permission Check
+
+ FileAPI->>FileAPI: role in ["admin", "teacher"]?
+
+ alt Không có quyền
+ FileAPI-->>Core: 403 "Only admin/teacher can upload"
+ Core-->>UI: 403 Forbidden
+ else Có quyền
+ Note over UI,DB: Lưu file vào disk
+
+ FileAPI->>FileAPI: file_content = await file.read()
+ FileAPI->>FileAPI: file_path = uploads/{user_id}/{filename}
+ FileAPI->>+Disk: aiofiles.open(file_path, 'wb')
+ Disk-->>-FileAPI: OK
+
+ Note over UI,DB: Tạo record trong MongoDB
+
+ FileAPI->>+DB: files.insert_one({<br/> name,<br/> size,<br/> mime_type,<br/> path,<br/> status: "Ready"<br/>})
+ DB-->>-FileAPI: file_id
+
+ FileAPI-->>-Core: FileUploadResponse
+ Core-->>-UI: 201 {id, name, size, status: "Ready"}
+ end

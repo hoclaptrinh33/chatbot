@@ -4,13 +4,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-import { Input, Button, Avatar, Spin, List, Typography, message as antMessage } from 'antd';
-import { SendOutlined, RobotOutlined, UserOutlined, PlusOutlined, MessageOutlined, DeleteOutlined, LogoutOutlined, WarningOutlined } from '@ant-design/icons';
+import { Input, Button, Avatar, Spin, List, Typography, message as antMessage, Tooltip } from 'antd';
+import { SendOutlined, RobotOutlined, UserOutlined, PlusOutlined, MessageOutlined, DeleteOutlined, LogoutOutlined, WarningOutlined, AudioOutlined } from '@ant-design/icons';
 import useAuthStore from '@/stores/authStore';
 import useChatStore from '@/stores/chatStore';
 import { chatbotService } from '@/services/chatbotService';
 import { Chatbot } from '@/types/chatbot';
-import ChatMessageItem from '@/components/Chat/ChatMessageItem';
+import LiveVoiceModal from '@/components/VoiceBot/LiveVoiceModal';
+import ChatTranscript from '@/components/Chat/ChatTranscript';
+import { useChatBranches } from '@/hooks/useChatBranches';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -32,9 +34,8 @@ export default function StudentChat() {
         deleteSession,
         selectChatbot,
         chatbotId,
-        createBranch,
-        regenerateMessage
     } = useChatStore();
+    const { getBranchesAt } = useChatBranches();
 
     const router = useRouter();
     const { logout } = useAuthStore();
@@ -45,6 +46,7 @@ export default function StudentChat() {
     };
 
     const [inputValue, setInputValue] = useState('');
+    const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -193,70 +195,6 @@ export default function StudentChat() {
         );
     }
 
-    // Render empty state if no messages
-    const renderEmptyState = () => (
-        <div className="flex flex-col items-center justify-center h-full text-center p-8 opacity-80">
-            <div className="w-24 h-24 mb-6">
-                <Image
-                    src="/logo_airc.jpg"
-                    alt="AIRC Logo"
-                    width={96}
-                    height={96}
-                    className="object-contain"
-                />
-            </div>
-            <h1 className="text-2xl font-bold mb-3 text-gray-800">Xin chào! Tôi là AIRC Assistant</h1>
-            <p className="text-gray-500 max-w-md">Hãy đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào bạn cần hỗ trợ.</p>
-        </div>
-    );
-
-    // Lấy danh sách các nhánh session tại vị trí tin nhắn có index
-    const getBranchesAt = (idx: number) => {
-        if (!currentSessionId || !sessions) return [];
-        
-        // 1. Tìm root session
-        let rootId = currentSessionId;
-        let current = sessions.find(s => s.id === currentSessionId);
-        while (current && current.parent_id) {
-            const currentParentId = current.parent_id;
-            const parent = sessions.find(s => s.id === currentParentId);
-            if (!parent) break;
-            current = parent;
-            rootId = current.id;
-        }
-
-        // 2. Tìm tất cả session con/cháu trong gia đình
-        const familyIds = [rootId];
-        let added = true;
-        while (added) {
-            added = false;
-            for (const s of sessions) {
-                if (s.parent_id && familyIds.includes(s.parent_id) && !familyIds.includes(s.id)) {
-                    familyIds.push(s.id);
-                    added = true;
-                }
-            }
-        }
-        const familySessions = sessions.filter(s => familyIds.includes(s.id));
-
-        // 3. Tìm các session rẽ nhánh tại index idx
-        const branchSessions = familySessions.filter(s => s.branch_message_index === idx);
-        if (branchSessions.length === 0) return [];
-
-        // 4. Các nhánh tại vị trí idx gồm session cha và các con rẽ nhánh từ cha tại index idx
-        const parentId = branchSessions[0].parent_id;
-        if (!parentId) return [];
-
-        const allBranches = [
-            parentId,
-            ...familySessions
-                .filter(s => s.parent_id === parentId && s.branch_message_index === idx)
-                .map(s => s.id)
-        ];
-
-        return Array.from(new Set(allBranches));
-    };
-
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50">
             {/* Sidebar List Sessions - AIRC Red Theme */}
@@ -394,39 +332,21 @@ export default function StudentChat() {
 
                 {/* Messages List */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
-                    {messages.length === 0 ? renderEmptyState() : (
-                        <div className="max-w-3xl mx-auto space-y-6">
-                            {messages.map((msg, idx) => {
-                                const branches = getBranchesAt(idx);
-                                const currentBranchIndex = branches.indexOf(currentSessionId || '');
-                                return (
-                                    <ChatMessageItem
-                                        key={msg.id || idx}
-                                        message={msg}
-                                        index={idx}
-                                        isLast={idx === messages.length - 1}
-                                        loading={loading}
-                                        onEditAndSubmit={createBranch}
-                                        onRegenerate={regenerateMessage}
-                                        branches={branches}
-                                        currentBranchIndex={currentBranchIndex}
-                                        onBranchChange={selectSession}
-                                    />
-                                );
-                            })}
-
-                            {loading && (
-                                <div className="flex gap-4 items-center">
-                                    <Avatar icon={<RobotOutlined />} className="bg-red-500" />
-                                    <div className="bg-white rounded-2xl px-5 py-3 border border-gray-200 shadow-sm">
-                                        <Spin size="small" />
-                                        <span className="text-gray-400 text-sm ml-2">Đang xử lý...</span>
+                    <div className="max-w-3xl mx-auto h-full">
+                        <ChatTranscript
+                            getBranchesAt={getBranchesAt}
+                            emptyHint={
+                                <div className="flex flex-col items-center text-center opacity-80">
+                                    <div className="w-24 h-24 mb-6">
+                                        <Image src="/logo_airc.jpg" alt="AIRC Logo" width={96} height={96} className="object-contain" />
                                     </div>
+                                    <h1 className="text-2xl font-bold mb-3 text-gray-800">Xin chào! Tôi là AIRC Assistant</h1>
+                                    <p className="text-gray-500 max-w-md">Hãy đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào bạn cần hỗ trợ.</p>
                                 </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
+                            }
+                        />
+                        <div ref={messagesEndRef} />
+                    </div>
                 </div>
 
                 {/* Input Area */}
@@ -445,6 +365,17 @@ export default function StudentChat() {
                                 bordered={false}
                                 variant="borderless"
                             />
+                            <Tooltip title={!selectedChatbot ? 'Hãy chọn chatbot trước khi bật Live Mode' : 'Bật Live Voice Mode'}>
+                                <Button
+                                    type="default"
+                                    shape="circle"
+                                    size="large"
+                                    icon={<AudioOutlined className="text-red-600" />}
+                                    onClick={() => setIsLiveVoiceOpen(true)}
+                                    disabled={loading || !selectedChatbot}
+                                    className="mb-0.5 border-gray-200 hover:border-red-400 flex items-center justify-center"
+                                />
+                            </Tooltip>
                             <Button
                                 type="primary"
                                 shape="circle"
@@ -467,6 +398,9 @@ export default function StudentChat() {
                     </div>
                 </div>
             </div>
+            {isLiveVoiceOpen && (
+                <LiveVoiceModal onClose={() => setIsLiveVoiceOpen(false)} />
+            )}
         </div>
     );
 }

@@ -3,23 +3,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Input, Button, Typography,
-    Card, Space, Avatar, Spin, Select
+    Space, Select, Tooltip
 } from 'antd';
-import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
+import { SendOutlined, AudioOutlined } from '@ant-design/icons';
 import Image from 'next/image';
 import useChatStore from '@/stores/chatStore';
 import useDatasetStore from '@/stores/datasetStore';
 import StudentChat from '@/components/Student/StudentChat';
 import ChatSidebar from './ChatSidebar';
-import ChatMessageItem from '@/components/Chat/ChatMessageItem';
 import useAuthStore from '@/stores/authStore';
-
-
-
+import LiveVoiceModal from '@/components/VoiceBot/LiveVoiceModal';
 import AuthGuard from '@/components/Auth/AuthGuard';
 import { chatbotService } from '@/services/chatbotService';
 import { Chatbot } from '@/types/chatbot';
-import RAGDebugPanel from '@/components/Chat/RAGDebugPanel';
+import ChatTranscript from '@/components/Chat/ChatTranscript';
+import { useChatBranches } from '@/hooks/useChatBranches';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -28,15 +26,16 @@ const { Option } = Select;
 export default function ChatPage() {
     const { user } = useAuthStore();
     const {
-        messages, loading: chatLoading, chatbotId, lastDebugMetrics,
-        sendMessage, loadSessions, selectChatbot, createBranch, regenerateMessage,
-        sessions, selectSession, currentSessionId
+        messages, loading: chatLoading, chatbotId,
+        sendMessage, loadSessions, selectChatbot,
     } = useChatStore();
+    const { getBranchesAt } = useChatBranches();
 
     const { fetchDatasets } = useDatasetStore();
 
     const [input, setInput] = useState('');
     const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+    const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const lastUserIdRef = useRef<string | null>(null);
     const isInitializedRef = useRef(false);
@@ -107,53 +106,6 @@ export default function ChatPage() {
         selectChatbot(value, bot?.dataset_ids || []);
     };
 
-    // Lấy danh sách các nhánh session tại vị trí tin nhắn có index
-    const getBranchesAt = (idx: number) => {
-        if (!currentSessionId || !sessions) return [];
-        
-        // 1. Tìm root session
-        let rootId = currentSessionId;
-        let current = sessions.find(s => s.id === currentSessionId);
-        while (current && current.parent_id) {
-            const currentParentId = current.parent_id;
-            const parent = sessions.find(s => s.id === currentParentId);
-            if (!parent) break;
-            current = parent;
-            rootId = current.id;
-        }
-
-        // 2. Tìm tất cả session con/cháu trong gia đình
-        const familyIds = [rootId];
-        let added = true;
-        while (added) {
-            added = false;
-            for (const s of sessions) {
-                if (s.parent_id && familyIds.includes(s.parent_id) && !familyIds.includes(s.id)) {
-                    familyIds.push(s.id);
-                    added = true;
-                }
-            }
-        }
-        const familySessions = sessions.filter(s => familyIds.includes(s.id));
-
-        // 3. Tìm các session rẽ nhánh tại index idx
-        const branchSessions = familySessions.filter(s => s.branch_message_index === idx);
-        if (branchSessions.length === 0) return [];
-
-        // 4. Các nhánh tại vị trí idx gồm session cha và các con rẽ nhánh từ cha tại index idx
-        const parentId = branchSessions[0].parent_id;
-        if (!parentId) return [];
-
-        const allBranches = [
-            parentId,
-            ...familySessions
-                .filter(s => s.parent_id === parentId && s.branch_message_index === idx)
-                .map(s => s.id)
-        ];
-
-        return Array.from(new Set(allBranches));
-    };
-
     // STUDENT VIEW: Use StudentChat component
     if (user?.role === 'student') {
         return (
@@ -213,59 +165,19 @@ export default function ChatPage() {
 
                     {/* Messages List */}
                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                        {messages.length === 0 ? (
-                            <div className="h-full flex flex-col justify-center items-center text-gray-400">
-                                <div className="w-24 h-24 mb-6">
-                                    <Image
-                                        src="/logo_airc.jpg"
-                                        alt="AIRC Logo"
-                                        width={96}
-                                        height={96}
-                                        className="object-contain"
-                                    />
-                                </div>
-                                <Title level={4} style={{ color: '#bfbfbf' }}>Bắt đầu trò chuyện</Title>
-                                <Text type="secondary">Đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào.</Text>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {messages.map((msg, idx) => {
-                                    const branches = getBranchesAt(idx);
-                                    const currentBranchIndex = branches.indexOf(currentSessionId || '');
-                                    return (
-                                        <ChatMessageItem
-                                            key={idx}
-                                            message={msg}
-                                            index={idx}
-                                            isLast={idx === messages.length - 1}
-                                            loading={chatLoading}
-                                            onEditAndSubmit={createBranch}
-                                            onRegenerate={regenerateMessage}
-                                            branches={branches}
-                                            currentBranchIndex={currentBranchIndex}
-                                            onBranchChange={selectSession}
-                                        />
-                                    );
-                                })}
-                                {chatLoading && (
-                                    <div className="flex justify-start">
-                                        <div className="max-w-[80%] flex gap-3">
-                                            <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#dc2626' }} />
-                                            <div className="bg-white border p-3 rounded-lg shadow-sm">
-                                                <Spin /> <span className="text-gray-400 text-sm ml-2">Đang xử lý...</span>
-                                            </div>
-                                        </div>
+                        <ChatTranscript
+                            getBranchesAt={getBranchesAt}
+                            emptyHint={
+                                <div className="flex flex-col items-center">
+                                    <div className="w-24 h-24 mb-6">
+                                        <Image src="/logo_airc.jpg" alt="AIRC Logo" width={96} height={96} className="object-contain" />
                                     </div>
-                                )}
-
-                                {/* Debug Panel - Show after last response */}
-                                {lastDebugMetrics && !chatLoading && messages.length > 0 && (
-                                    <RAGDebugPanel metrics={lastDebugMetrics} />
-                                )}
-
-                                <div ref={messagesEndRef} />
-                            </div>
-                        )}
+                                    <Title level={4} style={{ color: '#bfbfbf' }}>Bắt đầu trò chuyện</Title>
+                                    <Text type="secondary">Đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào.</Text>
+                                </div>
+                            }
+                        />
+                        <div ref={messagesEndRef} />
                     </div>
 
                     {/* Input Area */}
@@ -284,6 +196,17 @@ export default function ChatPage() {
                                     bordered={false}
                                     variant="borderless"
                                 />
+                                <Tooltip title={!chatbotId ? 'Hãy chọn chatbot trước khi bật Live Mode' : 'Bật Live Voice Mode'}>
+                                    <Button
+                                        type="default"
+                                        shape="circle"
+                                        size="large"
+                                        icon={<AudioOutlined className="text-red-600" />}
+                                        onClick={() => setIsLiveVoiceOpen(true)}
+                                        disabled={chatLoading || !chatbotId}
+                                        className="mb-0.5 border-gray-200 hover:border-red-400 flex items-center justify-center"
+                                    />
+                                </Tooltip>
                                 <Button
                                     type="primary"
                                     shape="circle"
@@ -306,6 +229,9 @@ export default function ChatPage() {
                     </div>
                 </div>
             </div>
+            {isLiveVoiceOpen && (
+                <LiveVoiceModal onClose={() => setIsLiveVoiceOpen(false)} />
+            )}
         </AuthGuard>
     );
 }

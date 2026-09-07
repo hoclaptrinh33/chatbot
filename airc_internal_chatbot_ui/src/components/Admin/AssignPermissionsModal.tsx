@@ -107,7 +107,7 @@ const AssignPermissionsModal: React.FC<AssignPermissionsModalProps> = ({
             <div className="p-4" style={{ minHeight: '100%' }}>
                 {loading || !matrixData ? (
                     <div className="flex justify-center items-center h-64">
-                        <Spin tip="Dang tai matrix..." />
+                        <Spin tip="Đang tải matrix..." />
                     </div>
                 ) : (
                     <PermissionMatrix

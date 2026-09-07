@@ -1,5 +1,6 @@
 import { coreClient } from '../infrastructure/http/core.client';
-import { ChatMessage, ChatResponse } from '@/core/entities/Chat';
+import { ChatMessage, ChatResponse, DatasetSearchResult } from '@/core/entities/Chat';
+import { getAuthToken } from '@/stores/authStore';
 
 export interface ChatSession {
     id: string;
@@ -81,6 +82,117 @@ class ChatService {
             history: sanitizedHistory
         });
         return response.data;
+    }
+
+    async askQuestionStream(
+        payload: AskRequest,
+        handlers: {
+            onToken: (text: string) => void;
+            onDone: (result: ChatResponse) => void;
+            onError: (detail: string) => void;
+        }
+    ): Promise<void> {
+        const sanitizedHistory = payload.history?.map(msg => ({
+            role: msg.role,
+            content: msg.content
+        }));
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+        const token = getAuthToken();
+        const response = await fetch(`${baseUrl}/chat/ask/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+                ...payload,
+                history: sanitizedHistory,
+            }),
+        });
+
+        if (!response.ok || !response.body) {
+            let detail = 'Không thể kết nối luồng trả lời';
+            try {
+                const err = await response.json();
+                detail = err.detail || detail;
+            } catch {
+                // ignore
+            }
+            handlers.onError(detail);
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        const consumeEvent = (raw: string) => {
+            const dataLine = raw
+                .split('\n')
+                .filter((line) => line.startsWith('data:'))
+                .map((line) => line.slice(5).trim())
+                .join('');
+            if (!dataLine) return;
+            let parsed: {
+                type?: string;
+                text?: string;
+                detail?: string;
+                question?: string;
+                answer?: string;
+                sources?: DatasetSearchResult[];
+                errors?: ChatResponse['errors'];
+                debug?: ChatResponse['debug'];
+                message_id?: string;
+            };
+            try {
+                parsed = JSON.parse(dataLine);
+            } catch {
+                return;
+            }
+            if (parsed.type === 'token' && parsed.text) {
+                handlers.onToken(parsed.text);
+            } else if (parsed.type === 'done') {
+                handlers.onDone({
+                    status: 'success',
+                    question: parsed.question || payload.question,
+                    answer: parsed.answer || '',
+                    sources: parsed.sources || [],
+                    errors: parsed.errors,
+                    debug: parsed.debug,
+                    message_id: parsed.message_id,
+                });
+            } else if (parsed.type === 'error') {
+                handlers.onError(parsed.detail || 'Lỗi khi sinh câu trả lời');
+            }
+        };
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop() || '';
+            for (const part of parts) {
+                consumeEvent(part);
+            }
+        }
+        if (buffer.trim()) {
+            consumeEvent(buffer);
+        }
+    }
+
+    async submitFeedback(payload: {
+        message_id: string;
+        session_id?: string;
+        rating: 'up' | 'down';
+        comment?: string;
+    }): Promise<void> {
+        await coreClient.post('/chat/feedback', payload);
+    }
+
+    async getSuggestions(): Promise<string[]> {
+        const response = await coreClient.get<{ suggestions: string[] }>('/chat/suggestions');
+        return response.data.suggestions || [];
     }
 }
 

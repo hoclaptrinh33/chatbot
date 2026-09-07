@@ -1,0 +1,22 @@
+flowchart LR
+    admin((Quản trị viên))
+    accountant((Nhân viên kế toán))
+    
+    subgraph System ["Module Hóa đơn & Môi giới"]
+        UC_upload(Tải lên chứng từ PDF/Ảnh)
+        UC_queue(Xem Hàng đợi & Trạng thái xử lý AI)
+        UC_review(Kiểm duyệt & Hiệu chỉnh dữ liệu)
+        UC_lock(Phê duyệt & Khóa sổ)
+        UC_folder_log(Quản lý Thư mục & Access Logs)
+    end
+    
+    accountant --> UC_upload
+    accountant --> UC_queue
+    accountant --> UC_review
+    accountant --> UC_lock
+    
+    admin --> UC_upload
+    admin --> UC_queue
+    admin --> UC_review
+    admin --> UC_lock
+    admin --> UC_folder_log

@@ -1,7 +1,7 @@
 
 from typing import List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from app.core.config import settings
 
 class ChatbotConfigModel(BaseModel):
@@ -27,7 +27,7 @@ class ChatbotConfigModel(BaseModel):
         description="Chiến lược tìm kiếm: hybrid (vector+keyword), vector (semantic only), keyword (BM25)"
     )
     top_k: int = Field(default=5, ge=1, le=20, description="Số chunks lấy từ vector DB")
-    similarity_threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Ngưỡng điểm tương đồng tối thiểu (0-1)")
+    similarity_threshold: float = Field(default=0.25, ge=0.0, le=1.0, description="Ngưỡng điểm tương đồng tối thiểu (0-1). vietnamese-sbert thường ~0.25–0.40 với câu đúng chủ đề.")
     
     # ═══════════════════════════════════════════════════════════════
     # 📈 RERANKING SETTINGS - Sắp xếp lại kết quả tìm kiếm
@@ -54,9 +54,14 @@ class ChatbotConfigModel(BaseModel):
         default=settings.llm_model_name, 
         description="Model LLM sử dụng"
     )
+    api_base_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="OpenAI-compatible endpoint riêng. Trống = dùng endpoint hệ thống. Phải đi kèm API key của cùng nhà cung cấp.",
+    )
     api_key: Optional[str] = Field(
         None, 
-        description="API Key riêng (ghi đè system default)"
+        description="API Key riêng. Nếu không nhập endpoint thì key gửi tới endpoint hệ thống (chỉ đúng nhà cung cấp)."
     )
     temperature: Optional[float] = Field(
         default=0.7, ge=0.0, le=2.0, 
@@ -92,12 +97,12 @@ class ChatbotConfigModel(BaseModel):
     # 📝 CONTEXT & HISTORY SETTINGS - Quản lý ngữ cảnh và lịch sử
     # ═══════════════════════════════════════════════════════════════
     enable_query_reformulation: bool = Field(
-        default=True,
-        description="Bật/Tắt viết lại câu hỏi dựa trên lịch sử hội thoại"
+        default=False,
+        description="Bật trên bot chính xác. Tắt mặc định (bot nhanh) vì thêm 1 lần gọi LLM."
     )
     enable_history_compression: bool = Field(
-        default=True,
-        description="Bật/Tắt nén lịch sử cuộc trò chuyện"
+        default=False,
+        description="Bật trên bot chính xác / session dài. Tắt mặc định để giảm latency."
     )
     history_limit: int = Field(
         default=3,
@@ -115,6 +120,22 @@ class ChatbotConfigModel(BaseModel):
         default="gemini-1.5-flash",
         description="Model LLM dùng để viết lại câu hỏi và tóm tắt lịch sử"
     )
+
+    @field_validator("api_base_url", "api_key", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("api_base_url")
+    @classmethod
+    def validate_api_base_url(cls, value):
+        if value and not value.startswith(("http://", "https://")):
+            raise ValueError("LLM endpoint phải bắt đầu bằng http:// hoặc https://")
+        return value
 
 
 class ChatbotCreate(BaseModel):

@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    actor User as Người dùng (Student/Teacher)
+    participant Client as Web Client (Next.js)
+    participant ChatService as Chat Service (Python API)
+    participant Redis as Redis Semantic Cache
+    participant Qdrant as Qdrant Vector DB
+    participant LLM as Google Gemini API
+
+    User->>Client: Nhập câu hỏi tra cứu
+    Client->>ChatService: Gửi câu hỏi (POST /api/chat)
+    ChatService->>ChatService: Chuyển câu hỏi sang vector (SBERT)
+    
+    ChatService->>Redis: Tìm kiếm câu hỏi tương đồng (Cosine Sim > 0.95)
+    alt Cache Hit (Có sẵn trong bộ đệm)
+        Redis-->>ChatService: Trả về câu trả lời lưu sẵn (Độ trễ < 100ms)
+    else Cache Miss (Không có trong bộ đệm)
+        ChatService->>Qdrant: Truy vấn Vector tìm kiếm Top-K chunks liên quan
+        Qdrant-->>ChatService: Trả về danh sách chunks và độ tương đồng
+        ChatService->>ChatService: Sắp xếp lại chunks (Cross-Encoder Reranking)
+        ChatService->>LLM: Gửi Prompt (System Prompt + Chunks Context + Câu hỏi)
+        LLM-->>ChatService: Trả về luồng văn bản câu trả lời (SSE Stream)
+        ChatService->>Redis: Lưu câu trả lời mới vào bộ đệm ngữ nghĩa
+    end
+    ChatService-->>Client: Trả về câu trả lời kèm trích dẫn (Citations)
+    Client-->>User: Hiển thị câu trả lời dạng cuốn chiếu

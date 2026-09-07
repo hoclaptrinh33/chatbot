@@ -1,0 +1,70 @@
+flowchart TB
+ subgraph Internet["Internet"]
+ User["Users"]
+ Domain["ragairc.neovort.shop"]
+ end
+
+ subgraph CF["Cloudflare"]
+ Tunnel["Cloudflare Tunnel<br/>(cloudflared pod)"]
+ end
+
+ subgraph GKE["GKE Cluster: rag-gke<br/>Region: asia-southeast1-c"]
+ subgraph NS["Namespace: airc-chatbot"]
+
+ subgraph Ingress["Nginx Ingress Controller"]
+ ING["nginx-ingress<br/>CORS enabled"]
+ end
+
+ subgraph Apps["Deployments (Stateless)"]
+ UI["ui-service<br/>replicas: 1<br/>port: 3000<br/>image: airc-ui"]
+ AUTH["auth-service<br/>replicas: 1<br/>port: 8001<br/>image: airc-auth"]
+ CORE["core-service<br/>replicas: 1<br/>port: 8000<br/>image: airc-core"]
+ WORKER["worker<br/>replicas: 1<br/>image: airc-core<br/>cmd: python worker.py"]
+ end
+
+ subgraph Data["StatefulSets (Stateful)"]
+ MONGO[("MongoDB<br/>port: 27017<br/>PVC: 10Gi")]
+ REDIS[("Redis<br/>port: 6379<br/>PVC: 1Gi")]
+ QDRANT[("Qdrant<br/>port: 6333<br/>PVC: 10Gi")]
+ end
+
+ subgraph Config["ConfigMaps & Secrets"]
+ SECRET["shared-secrets<br/>- JWT_SECRET_KEY<br/>- GEMINI_API_KEY"]
+ CM_AUTH["auth-configmap"]
+ CM_CORE["core-configmap"]
+ REG["registry-credentials"]
+ end
+ end
+ end
+
+ User --> Domain
+ Domain --> Tunnel
+ Tunnel --> ING
+
+ ING -->|"/"| UI
+ ING -->|"/api/auth/*<br/>/api/rbac/*"| AUTH
+ ING -->|"/api/v1/*"| CORE
+
+ AUTH --> MONGO
+ CORE -->|"POST /api/auth/verify"| AUTH
+ CORE --> MONGO
+ CORE --> REDIS
+ CORE --> QDRANT
+
+ WORKER --> REDIS
+ WORKER --> MONGO
+ WORKER --> QDRANT
+
+ AUTH -.->|"env"| SECRET
+ AUTH -.->|"env"| CM_AUTH
+ CORE -.->|"env"| SECRET
+ CORE -.->|"env"| CM_CORE
+
+ UI -.->|"pull image"| REG
+ AUTH -.->|"pull image"| REG
+ CORE -.->|"pull image"| REG
+
+ style UI fill:#fff9c4
+ style AUTH fill:#ffccbc
+ style CORE fill:#c8e6c9
+ style WORKER fill:#d1c4e9

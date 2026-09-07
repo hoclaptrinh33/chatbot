@@ -6,7 +6,10 @@ giữa câu hỏi và các đoạn văn bản (chunks) trả về từ Vector Se
 from sentence_transformers import CrossEncoder
 from typing import List, Dict, Optional
 import logging
+import os
 import numpy as np
+
+_RERANK_DEVICE = os.getenv("RERANK_DEVICE", "cpu")
 
 logger = logging.getLogger(__name__)
 
@@ -90,10 +93,12 @@ class RerankService:
             
             try:
                 model_path = RERANKER_MODELS[model_name]
-                logger.info(f"[RERANK] Đang tải model={model_name} path={model_path}")
-                
-                # Load model với max_length 512 tokens
-                self.models[model_name] = CrossEncoder(model_path, max_length=512)
+                logger.info(
+                    f"[RERANK] Đang tải model={model_name} path={model_path} device={_RERANK_DEVICE}"
+                )
+                self.models[model_name] = CrossEncoder(
+                    model_path, max_length=512, device=_RERANK_DEVICE
+                )
                 
                 logger.info(f"[RERANK] Tải thành công model={model_name}")
             except Exception as e:
@@ -141,7 +146,7 @@ class RerankService:
             logger.info(f"[RERANK] Đang chấm điểm {len(pairs)} chunks với model {model_name}")
             
             # Dự đoán điểm số tương đồng (relevance score)
-            scores = model.predict(pairs)
+            scores = model.predict(pairs, show_progress_bar=False)
             
             # Gán điểm rerank_score vào từng chunk
             for i, chunk in enumerate(chunks):

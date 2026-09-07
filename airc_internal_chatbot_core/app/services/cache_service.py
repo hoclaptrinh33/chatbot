@@ -6,6 +6,7 @@ from typing import Optional, Dict, List
 import logging
 import numpy as np
 from datetime import datetime, timedelta
+from app.services.cache_policy import is_cacheable_answer
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +85,23 @@ class SemanticCacheService:
                 best_entry = entry
         
         # Check if similarity exceeds threshold
-        if best_similarity >= self.similarity_threshold:
+        if best_similarity >= self.similarity_threshold and best_entry is not None:
+            cached_answer = best_entry.get("answer") or ""
+            if not is_cacheable_answer(cached_answer):
+                self.cache = [entry for entry in self.cache if entry is not best_entry]
+                self._misses += 1
+                logger.info(
+                    "[CACHE] Dropped uncacheable hit suffix=%s question_preview=%s...",
+                    suffix,
+                    question[:50],
+                )
+                return None
             self._hits += 1
             logger.info(
                 f"[CACHE] HIT similarity={best_similarity:.4f} suffix={suffix} "
                 f"question_preview={question[:50]}..."
             )
-            return best_entry['answer']
+            return cached_answer
         else:
             self._misses += 1
             logger.debug(
@@ -115,6 +126,14 @@ class SemanticCacheService:
             answer: Câu trả lời cần cache
             suffix: Optional suffix to isolate cache (e.g., "_bot_123")
         """
+        if not is_cacheable_answer(answer):
+            logger.info(
+                "[CACHE] SKIP uncacheable answer suffix=%s question_preview=%s...",
+                suffix,
+                question[:50],
+            )
+            return
+
         # Check cache size limit
         if len(self.cache) >= self.max_cache_size:
             # Remove oldest entry

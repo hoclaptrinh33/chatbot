@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor Accountant as Kế toán viên
+    participant FE as Frontend (Next.js)
+    participant BE as Backend (Express)
+    participant AI as AI Engine (OCR & Extract)
+    participant DB as Database (PostgreSQL)
+
+    Accountant->>FE: Kéo thả tải hóa đơn lên
+    FE->>BE: POST /api/folder-file/upload
+    BE->>DB: Ghi nhận File (Trạng thái PENDING)
+    BE->>BE: Gửi tín hiệu xử lý AI ngầm
+    BE->>AI: POST /extract (Gửi tệp xử lý)
+    AI-->>BE: Phản hồi taskId (Nhận việc thành công)
+    BE->>DB: Tạo AiTask (Trạng thái AI_PROCESSING)
+    BE-->>FE: Trả về kết quả tải lên thành công
+    
+    Note over BE, AI: Trích xuất AI chạy ngầm
+    AI->>BE: Trả về kết quả JSON đã trích xuất & confidence_score
+    BE->>DB: Lưu resultJson vào AiTask, đổi trạng thái File sang NEEDS_REVIEW
+    
+    Accountant->>FE: Mở xem chi tiết để đối soát dữ liệu
+    FE->>BE: GET /api/invoice/{id}
+    BE->>DB: Lấy dữ liệu trích xuất của hóa đơn
+    DB-->>BE: Trả về
+    BE-->>FE: Phản hồi dữ liệu chi tiết
+    FE->>Accountant: Hiển thị màn hình so sánh dữ liệu
+    Accountant->>FE: Chỉnh sửa các trường sai lệch & bấm "Approve"
+    FE->>BE: PUT /api/invoice/{id}/approve
+    BE->>DB: Lưu dữ liệu đã chốt, cập nhật trạng thái COMPLETED & Khóa dữ liệu
+    BE-->>FE: Xác nhận hoàn thành
+    FE->>Accountant: Hiển thị trạng thái Đã khóa sổ (Không cho sửa tiếp)

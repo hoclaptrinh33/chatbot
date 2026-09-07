@@ -452,6 +452,72 @@ async def remove_role_from_user(
     return None
 
 
+@router.put("/users/{user_id}/roles", response_model=List[RoleResponse])
+async def set_user_roles(
+    user_id: str,
+    request: SetUserRolesRequest,
+    current_user: UserInDB = Depends(require_system_manage),
+    repo: RBACRepository = Depends(get_rbac_repository),
+    rbac_service: RBACService = Depends(get_rbac_service),
+    auth_service = Depends(get_auth_service),
+):
+    """
+    Replace the user's role set (bulk). Cannot grant or revoke admin.
+    Also syncs users.role to the highest-priority remaining role.
+    """
+    current_roles = await repo.get_user_roles(user_id)
+    current_by_id = {r.id: r for r in current_roles}
+
+    desired_ids = []
+    for rid in request.role_ids:
+        role = await repo.get_role_by_id(rid)
+        if not role:
+            raise HTTPException(status_code=404, detail=f"Role {rid} không tồn tại")
+        if role.code == "admin":
+            if rid in current_by_id:
+                continue
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không thể gán role Admin thủ công.",
+            )
+        desired_ids.append(rid)
+
+    for role in current_roles:
+        if role.code == "admin":
+            continue
+        if role.id not in desired_ids:
+            await repo.remove_role_from_user(user_id, role.id)
+
+    for rid in desired_ids:
+        if rid not in current_by_id:
+            await repo.assign_role_to_user(user_id, rid, str(current_user.id), None)
+
+    rbac_service.invalidate_user_cache(user_id)
+
+    updated_roles = await repo.get_user_roles(user_id)
+    primary = _primary_role_code(updated_roles)
+    try:
+        await auth_service.update_user_admin(user_id, {"role": primary})
+    except Exception as exc:
+        logger.warning("Failed to sync users.role for %s: %s", user_id, exc)
+
+    logger.info(
+        "User %s set roles for %s -> %s",
+        current_user.email,
+        user_id,
+        [r.code for r in updated_roles],
+    )
+    return updated_roles
+
+
+def _primary_role_code(roles: List[RoleResponse]) -> str:
+    codes = [r.code for r in roles]
+    for preferred in ("admin", "teacher", "student"):
+        if preferred in codes:
+            return preferred
+    return codes[0] if codes else "student"
+
+
 @router.get("/users/{user_id}/roles", response_model=List[RoleResponse])
 async def get_user_roles(
     user_id: str,

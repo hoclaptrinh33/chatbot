@@ -9,6 +9,7 @@ import {
     MessageOutlined,
     SafetyCertificateOutlined,
     RobotOutlined,
+    SettingOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined
 } from '@ant-design/icons';
@@ -78,6 +79,11 @@ const MainSidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
                     key: '/dashboard/datasets',
                     icon: <DatabaseOutlined />,
                     label: 'Bộ dữ liệu',
+                },
+                {
+                    key: '/admin/settings',
+                    icon: <SettingOutlined />,
+                    label: 'Cài đặt hệ thống',
                 }
             );
         }

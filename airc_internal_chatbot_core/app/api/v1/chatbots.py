@@ -2,7 +2,7 @@
 Chatbot Controller - API endpoints cho chatbot configuration
 **ADMIN ONLY CREATE PERMISSION**
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.models.chatbot_schemas import (
     ChatbotCreate,
     ChatbotUpdate,
@@ -15,8 +15,6 @@ from app.api.dependencies import get_chatbot_service, get_current_user
 from app.models.auth import User
 from typing import List, Optional
 import logging
-import httpx
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,35 +23,35 @@ router = APIRouter()
 
 @router.get("/meta/llm-models")
 async def get_available_llm_models(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    api_base_url: Optional[str] = Query(None),
+    api_key: Optional[str] = Query(None),
 ):
     """
-    Lấy danh sách các LLM model khả dụng từ server local hoặc cloud API (OpenAI-compatible)
-    và model mặc định được cấu hình trong hệ thống (.env)
+    Lấy danh sách LLM model từ provider hệ thống, hoặc từ endpoint/key
+    ghi đè của chatbot khi client gửi api_base_url / api_key.
     """
-    default_model = settings.llm_model_name
+    from app.api.v1.settings import fetch_provider_models
+    from app.services.llm_resolve import resolve_llm_connection
+    from app.services.system_settings_service import get_effective_llm_settings
+
+    effective = await get_effective_llm_settings()
+    base_url, token = resolve_llm_connection(
+        bot_base_url=api_base_url,
+        bot_api_key=api_key,
+        system_base_url=effective["base_url"],
+        system_api_key=effective.get("api_key"),
+    )
+    default_model = effective["model_name"]
     models = []
     try:
-        base_url = settings.llm_api_base_url.rstrip("/")
-        endpoint = f"{base_url}/models"
-        
-        headers = {}
-        if settings.llm_api_key:
-            headers["Authorization"] = f"Bearer {settings.llm_api_key}"
-            
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(endpoint, headers=headers)
-            if response.status_code == 200:
-                data = response.json()
-                models_data = data.get("data", [])
-                models = [m.get("id") for m in models_data if m.get("id")]
+        models = await fetch_provider_models(base_url, token)
     except Exception as e:
-        logger.warning(f"[LLM Models] Error fetching models from {settings.llm_api_base_url}: {e}")
-        
-    # Luôn đảm bảo default_model có mặt trong danh sách gợi ý
-    if default_model and default_model not in models:
+        logger.warning(f"[LLM Models] Error fetching models from {base_url}: {e}")
+
+    if default_model and default_model not in models and not api_base_url:
         models.insert(0, default_model)
-        
+
     return {
         "models": models,
         "default_model": default_model

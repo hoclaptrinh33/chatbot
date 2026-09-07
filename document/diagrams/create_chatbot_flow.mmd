@@ -1,0 +1,40 @@
+sequenceDiagram
+ autonumber
+ participant UI as UI
+ participant Core as Core Service
+ participant Auth as Auth Service
+ participant Chatbot as ChatbotService
+ participant DB as MongoDB
+
+ Note over UI,DB: Tạo Chatbot (Admin only)
+
+ UI->>+Core: POST /api/v1/chatbots<br/>{name, description, dataset_ids, allowed_roles}<br/>Header: Bearer token
+
+ Core->>+Auth: POST /api/auth/verify {"token": "eyJ..."}
+ Auth-->>-Core: {user_id, role: "admin"}
+
+ Core->>+Chatbot: create_chatbot(creator_id, creator_role, data)
+
+ Note over UI,DB: Permission Check
+
+ Chatbot->>Chatbot: creator_role == "admin"?
+
+ alt Không phải admin
+ Chatbot-->>Core: PermissionError
+ Core-->>UI: 403 "Admin only"
+ else Là admin
+ Note over UI,DB: Validate datasets exist
+
+ Chatbot->>+DB: datasets.find({_id: {$in: dataset_ids}})
+ DB-->>-Chatbot: datasets[]
+
+ Chatbot->>Chatbot: Kiểm tra số lượng datasets khớp
+
+ Note over UI,DB: Create chatbot record
+
+ Chatbot->>+DB: chatbots.insert_one({<br/> name,<br/> description,<br/> owner_id,<br/> dataset_ids,<br/> allowed_roles: ["student", "teacher"],<br/> is_active: true,<br/> config: {top_k, reranker, ...}<br/>})
+ DB-->>-Chatbot: chatbot_id
+
+ Chatbot-->>-Core: chatbot document
+ Core-->>-UI: 201 ChatbotResponse
+ end

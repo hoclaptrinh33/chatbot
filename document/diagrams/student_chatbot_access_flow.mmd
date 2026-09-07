@@ -1,0 +1,31 @@
+flowchart TD
+ A[Student mở trang Chat] --> B[UI gọi GET /api/v1/chatbots]
+ B --> C[Core verify token]
+ C --> D{Token hợp lệ?}
+ D -->|No| E[401 Unauthorized]
+ D -->|Yes| F[ChatbotService.get_available_chatbots]
+
+ F --> G{User role?}
+ G -->|admin| H[Trả về TẤT CẢ chatbots]
+ G -->|teacher/student| I[Filter: role in allowed_roles]
+
+ I --> J[Chatbot có allowed_roles<br/>chứa student?]
+ J -->|Yes| K[Hiển thị chatbot]
+ J -->|No| L[Không hiển thị]
+
+ H --> M[UI render danh sách chatbots]
+ K --> M
+
+ M --> N[Student chọn chatbot]
+ N --> O[UI gọi POST /chat/ask<br/>với chatbot_id]
+ O --> P[ChatService kiểm tra RBAC]
+
+ P --> Q{student in allowed_roles?}
+ Q -->|Yes| R[Xử lý RAG + trả lời]
+ Q -->|No| S[403 Không có quyền]
+
+ style E fill:#ffcdd2
+ style L fill:#ffcdd2
+ style S fill:#ffcdd2
+ style K fill:#c8e6c9
+ style R fill:#c8e6c9

@@ -1,0 +1,15 @@
+flowchart LR
+ subgraph Qdrant["Qdrant Vector DB"]
+ subgraph C1["Collection: dataset_abc123"]
+ P1["Point 1<br/>id: chunk_id<br/>vector: [768 floats]<br/>payload: {dataset_id, file_id}"]
+ P2["Point 2<br/>..."]
+ end
+
+ subgraph C2["Collection: dataset_xyz789"]
+ P3["Point 1<br/>..."]
+ P4["Point 2<br/>..."]
+ end
+ end
+
+ Search["Vector Search"] -->|"Cosine Similarity<br/>HNSW Index"| C1
+ Search -->|"Multi-collection<br/>search"| C2

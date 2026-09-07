@@ -197,6 +197,15 @@ class RBACService implements IRBACService {
         return response.data;
     }
 
+    public async setUserRoles(userId: string, roleIds: string[], token: string): Promise<Role[]> {
+        const response = await this.api.put<Role[]>(
+            `/rbac/users/${userId}/roles`,
+            { role_ids: roleIds },
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+        return response.data;
+    }
+
     // === MATRIX ===
 
     public async getPermissionMatrix(token: string): Promise<PermissionMatrixResponse> {
