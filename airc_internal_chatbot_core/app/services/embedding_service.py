@@ -22,9 +22,10 @@ DEFAULT_MODEL = "keepitreal/vietnamese-sbert"
 # Cache embedders
 _EMBEDDERS: dict[str, SentenceTransformer] = {}
 
-# Giới hạn threads cho performance
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("MKL_NUM_THREADS", "1")
+# Keep embed on CPU so LocalAI can own the GPU. Chat encodes one sentence.
+os.environ.setdefault("OMP_NUM_THREADS", "4")
+os.environ.setdefault("MKL_NUM_THREADS", "4")
+_EMBED_DEVICE = os.getenv("EMBED_DEVICE", "cpu")
 
 
 class EmbeddingService:
@@ -45,8 +46,8 @@ class EmbeddingService:
             if model_name in self.embedders:
                 continue
             
-            logger.info("[EMBED] Loading model=%s path=%s", model_name, path)
-            self.embedders[model_name] = SentenceTransformer(path)
+            logger.info("[EMBED] Loading model=%s path=%s device=%s", model_name, path, _EMBED_DEVICE)
+            self.embedders[model_name] = SentenceTransformer(path, device=_EMBED_DEVICE)
             logger.info("[EMBED] Model loaded=%s", model_name)
         
         logger.info("[EMBED] Preload done total=%d", len(self.embedders))
@@ -74,9 +75,9 @@ class EmbeddingService:
             raise ValueError(f"Model {model_name} not found in registry")
 
         path = MODEL_REGISTRY[model_name]
-        logger.info("[EMBED] Lazy loading model=%s path=%s", model_name, path)
+        logger.info("[EMBED] Lazy loading model=%s path=%s device=%s", model_name, path, _EMBED_DEVICE)
         try:
-            self.embedders[model_name] = SentenceTransformer(path)
+            self.embedders[model_name] = SentenceTransformer(path, device=_EMBED_DEVICE)
             logger.info("[EMBED] Model loaded=%s", model_name)
         except Exception as e:
             logger.error("[EMBED] Failed to load model=%s: %s", model_name, e)
@@ -108,7 +109,12 @@ class EmbeddingService:
         
         for i in range(0, total, batch_size):
             batch = texts[i:i + batch_size]
-            vecs = embedder.encode(batch, normalize_embeddings=True)
+            vecs = embedder.encode(
+                batch,
+                normalize_embeddings=True,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
             vectors.extend(vecs)
             
             logger.info(

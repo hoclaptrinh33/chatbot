@@ -10,8 +10,21 @@ from app.services.vector_service import vector_service
 from app.models.enums import FileStatus
 from typing import List, Optional, Dict
 import logging
+import os
+import shutil
 
 logger = logging.getLogger(__name__)
+
+
+def _delete_extracted_images(dataset_file_id: str):
+    """Xóa thư mục ảnh trích xuất của một dataset_file_id"""
+    dir_path = os.path.join("uploads", "extracted_images", dataset_file_id)
+    if os.path.exists(dir_path):
+        try:
+            shutil.rmtree(dir_path)
+            logger.info(f"Đã xóa thư mục ảnh trích xuất của dataset_file={dataset_file_id} tại {dir_path}")
+        except Exception as e:
+            logger.error(f"Lỗi khi xóa thư mục ảnh trích xuất {dir_path}: {e}")
 
 
 class DatasetService:
@@ -120,11 +133,22 @@ class DatasetService:
         Xóa dataset hoàn toàn và dọn dẹp dữ liệu liên quan
         
         Quy trình cleanup:
-            1. Xóa records trong bảng dataset_files
-            2. Xóa tất cả chunks trong MongoDB
-            3. Xóa index vector tương ứng trong Qdrant (Vector DB)
-            4. Xóa record dataset chính
+            1. Xóa thư mục ảnh trích xuất của các files
+            2. Xóa records trong bảng dataset_files
+            3. Xóa tất cả chunks trong MongoDB
+            4. Xóa index vector tương ứng trong Qdrant (Vector DB)
+            5. Xóa record dataset chính
         """
+        # B0: Dọn dẹp ảnh trích xuất vật lý của các files thuộc dataset này
+        try:
+            dataset_files = await self.dataset_file_repo.get_by_dataset(dataset_id)
+            for df in dataset_files:
+                df_id = df.get("id")
+                if df_id:
+                    _delete_extracted_images(df_id)
+        except Exception as e:
+            logger.error(f"Lỗi khi dọn dẹp ảnh trích xuất khi xóa dataset {dataset_id}: {e}")
+
         # B1: Xóa quan hệ file-dataset
         await self.dataset_file_repo.delete_by_dataset(dataset_id)
         
@@ -232,10 +256,14 @@ class DatasetService:
         
         Logic cleanup:
             1. Xóa các chunks dữ liệu liên quan đến dataset file này
-            2. Xóa record liên kết
+            2. Xóa các hình ảnh trích xuất khỏi đĩa
+            3. Xóa record liên kết
         """
         # Cleanup chunks
         await self.chunk_repo.delete_by_dataset_file(dataset_id, dataset_file_id)
+        
+        # Cleanup các ảnh trích xuất của file tài liệu này
+        _delete_extracted_images(dataset_file_id)
         
         # Xóa record dataset file
         return await self.dataset_file_repo.delete_by_id(dataset_file_id)

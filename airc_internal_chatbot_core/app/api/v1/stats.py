@@ -11,6 +11,8 @@ from datetime import datetime, timedelta
 
 from app.core import get_database
 from app.services.cache_service import semantic_cache_service
+from app.models.auth import User, Permission
+from app.api.dependencies import require_permission, get_session_repo
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,12 @@ class RecentActivity(BaseModel):
 
 
 @router.get("/dashboard", response_model=DashboardStats)
-async def get_dashboard_stats():
+async def get_dashboard_stats(
+    current_user: User = Depends(require_permission(Permission.ANALYTICS_VIEW)),
+    session_repo=Depends(get_session_repo),
+):
     """
-    Get dashboard statistics for admin view
+    Get dashboard statistics for admin/teacher view
     """
     try:
         db = await get_database()
@@ -85,12 +90,14 @@ async def get_dashboard_stats():
             cache_hit_rate = (cache_stats.get("hits", 0) / 
                            (cache_stats.get("hits", 0) + cache_stats.get("misses", 0))) * 100
         
-        # Calculate average response time from recent conversations
-        # For now use a reasonable default - can be enhanced with actual metrics
-        avg_response_time = 1.2  # Default 1.2s
-        
-        # Accuracy rate - can be calculated from feedback if implemented
-        accuracy_rate = 89.0  # Default - TODO: implement feedback-based calculation
+        avg_latency_ms = await session_repo.get_average_latency_ms()
+        avg_response_time = round((avg_latency_ms or 0) / 1000.0, 2)
+
+        feedback_counts = await session_repo.get_feedback_counts()
+        rated = feedback_counts.get("up", 0) + feedback_counts.get("down", 0)
+        accuracy_rate = (
+            round((feedback_counts.get("up", 0) / rated) * 100, 1) if rated else 0.0
+        )
         
         return DashboardStats(
             chatbot_count=chatbot_count,
@@ -111,7 +118,10 @@ async def get_dashboard_stats():
 
 
 @router.get("/recent-activity", response_model=List[RecentActivity])
-async def get_recent_activity(limit: int = 5):
+async def get_recent_activity(
+    limit: int = 5,
+    current_user: User = Depends(require_permission(Permission.ANALYTICS_VIEW)),
+):
     """
     Get recent system activities for dashboard
     """

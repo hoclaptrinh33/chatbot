@@ -58,10 +58,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Layout>
                 <MainHeader collapsed={collapsed} />
 
-                <Content style={{ margin: '24px 24px', minHeight: 280 }}>
+                <Content style={{ margin: '8px 8px', minHeight: 280 }}>
                     <div
                         style={{
-                            padding: 24,
+                            padding: 8,
                             minHeight: '100%',
                             background: '#f5f5f5', // Transparent content bg to show cards better
                             borderRadius: borderRadiusLG,

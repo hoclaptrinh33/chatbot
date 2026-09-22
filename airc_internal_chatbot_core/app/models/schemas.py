@@ -32,8 +32,11 @@ class DatasetResponse(BaseModel):
     description: Optional[str] = None
     # config: DatasetConfig  <-- Removed
     created_at: datetime
+    shared_with: Optional[List[str]] = None
+    owner_id: Optional[str] = None
+    visibility: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
 
 
 # ==================== File Schemas ====================
@@ -107,11 +110,13 @@ class SearchResult(BaseModel):
     """Kết quả tìm kiếm từ vector DB"""
     vector_id: Union[int, str]
     score: float
-    text: str
+    text: Optional[str] = ""
     file_id: str
-    dataset_file_id: str
-    chunk_index: int
-    cite: str
+    file_name: Optional[str] = None
+    dataset_file_id: Optional[str] = None
+    chunk_index: int = 0
+    cite: str = ""
+    origin: Optional[str] = None
 
 
 class DatasetSearchResult(BaseModel):
@@ -129,6 +134,21 @@ class ChatResponse(BaseModel):
     sources: List[DatasetSearchResult]
     errors: List[Dict[str, Any]] = Field(default_factory=list)
     debug: Optional[Dict[str, Any]] = None  # RAG performance metrics
+    message_id: Optional[str] = None
+
+
+class ChatFeedbackRequest(BaseModel):
+    """Request: thumbs up/down on an assistant message"""
+    message_id: str
+    session_id: Optional[str] = None
+    rating: str = Field(..., pattern="^(up|down)$")
+    comment: Optional[str] = Field(default=None, max_length=1000)
+
+
+class ChatFeedbackResponse(BaseModel):
+    status: str = "success"
+    message_id: str
+    rating: str
 
 
 # ==================== Chunk Schemas ====================
@@ -165,6 +185,8 @@ class ErrorResponse(BaseModel):
 class ChatSessionCreate(BaseModel):
     """Request: Tạo phiên chat mới"""
     name: str = Field(..., min_length=1, description="Tên phiên chat")
+    parent_id: Optional[str] = Field(default=None, description="ID của session cha nếu đây là nhánh rẽ")
+    branch_message_index: Optional[int] = Field(default=None, description="Index của tin nhắn bắt đầu rẽ nhánh")
 
 
 class ChatSessionUpdate(BaseModel):
@@ -179,6 +201,8 @@ class ChatSessionResponse(BaseModel):
     name: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    parent_id: Optional[str] = None
+    branch_message_index: Optional[int] = None
 
 
 class ChatMessageCreate(BaseModel):
@@ -195,4 +219,9 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    sources: Optional[List[DatasetSearchResult]] = None
+    feedback: Optional[str] = None
+    latency_ms: Optional[float] = None
+
+    model_config = ConfigDict(extra="ignore")
     

@@ -64,6 +64,14 @@ class ChatbotService {
         const response = await coreClient.get<string[]>('/chatbots/meta/roles-with-chatbot', { params });
         return response.data;
     }
+
+    /**
+     * Lấy danh sách các LLM model khả dụng từ backend
+     */
+    async getLLMModels(): Promise<{ models: string[]; default_model: string }> {
+        const response = await coreClient.get<{ models: string[]; default_model: string }>('/chatbots/meta/llm-models');
+        return response.data;
+    }
 }
 
 export const chatbotService = new ChatbotService();

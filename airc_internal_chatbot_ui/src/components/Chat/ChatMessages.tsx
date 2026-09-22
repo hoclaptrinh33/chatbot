@@ -5,8 +5,7 @@ import { Avatar, Spin, Typography } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import { ChatMessage } from '@/core/entities/Chat';
 import dayjs from 'dayjs';
-import ReactMarkdown from 'react-markdown';
-import type { Components } from 'react-markdown';
+import ChatMessageContent from '@/components/Chat/ChatMessageContent';
 import Image from 'next/image';
 
 const { Text } = Typography;
@@ -40,27 +39,7 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping]);
 
-    /**
-     * Custom Markdown components de render phu hop voi UI
-     * Loai bo tham so `node` khong su dung de tranh warning TypeScript
-     */
-    const markdownComponents: Components = {
-        p: ({ ...props }) => <p className="mb-2 leading-relaxed" {...props} />,
-        ul: ({ ...props }) => <ul className="list-disc list-inside mb-2 space-y-1" {...props} />,
-        ol: ({ ...props }) => <ol className="list-decimal list-inside mb-2 space-y-1" {...props} />,
-        li: ({ ...props }) => <li className="ml-4" {...props} />,
-        h1: ({ ...props }) => <h1 className="text-xl font-bold mb-2 mt-4" {...props} />,
-        h2: ({ ...props }) => <h2 className="text-lg font-bold mb-2 mt-3" {...props} />,
-        h3: ({ ...props }) => <h3 className="text-base font-bold mb-2 mt-2" {...props} />,
-        strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
-        code: ({ className, ...props }) => {
-            const isInline = !className?.includes('language-');
-            return isInline ?
-                <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono" {...props} /> :
-                <code className={`block bg-gray-100 p-2 rounded text-sm font-mono overflow-x-auto mb-2 ${className || ''}`} {...props} />;
-        },
-        blockquote: ({ ...props }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic mb-2" {...props} />,
-    };
+
 
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50">
@@ -70,10 +49,10 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
                         <Image src="/logo_airc.jpg" alt="AIRC Logo" width={120} height={120} className="rounded-full" />
                     </div>
                     <Text type="secondary" className="text-lg">
-                        Bat dau tro chuyen voi AIRC Assistant
+                        Bắt đầu trò chuyện với AIRC Assistant
                     </Text>
                     <Text type="secondary" className="text-sm">
-                        Chon dataset ben trai va dat cau hoi.
+                        Chọn dataset bên trái và đặt câu hỏi.
                     </Text>
                 </div>
             )}
@@ -116,10 +95,8 @@ export default function ChatMessages({ messages, isTyping }: ChatMessagesProps) 
                                     // User message: Plain text with preserved line breaks
                                     <p className="m-0 whitespace-pre-wrap">{msg.content}</p>
                                 ) : (
-                                    // Bot message: Render Markdown for rich formatting
-                                    <ReactMarkdown components={markdownComponents}>
-                                        {msg.content}
-                                    </ReactMarkdown>
+                                    // Bot message: Render Markdown, LaTeX & Mermaid for rich formatting
+                                    <ChatMessageContent content={msg.content} isUser={false} />
                                 )}
                             </div>
 

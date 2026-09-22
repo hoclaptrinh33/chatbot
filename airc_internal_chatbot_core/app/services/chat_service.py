@@ -8,18 +8,22 @@ Service này xử lý toàn bộ luồng nghiệp vụ của chức năng Chat:
 """
 import logging
 import time
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Awaitable, Callable
 import numpy as np
 
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.dataset_file_repository import DatasetFileRepository
 from app.repositories.chunk_repository import ChunkRepository
+from app.repositories.file_repository import FileRepository
 from app.services.embedding_service import embedding_service
 from app.services.vector_service import vector_service
 from app.services.llm_service import llm_service
 from app.services.prompt_service import prompt_service
 from app.services.rerank_service import rerank_service
 from app.services.cache_service import semantic_cache_service
+from app.services.cache_policy import is_cacheable_answer
+from app.services.retrieval_merge import apply_score_threshold, rrf_merge
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,13 +44,15 @@ class ChatService:
         dataset_file_repo: DatasetFileRepository,
         chunk_repo: ChunkRepository,
         session_repo: Any = None,
-        chatbot_repo: Any = None # NEW: Chatbot Repository
+        chatbot_repo: Any = None,
+        file_repo: Any = None,
     ):
         self.dataset_repo = dataset_repo
         self.dataset_file_repo = dataset_file_repo
         self.chunk_repo = chunk_repo
         self.session_repo = session_repo
         self.chatbot_repo = chatbot_repo
+        self.file_repo = file_repo
     
     async def ask_question(
         self,
@@ -55,7 +61,8 @@ class ChatService:
         history: Optional[List[Dict]] = None,
         session_id: Optional[str] = None,
         chatbot_id: Optional[str] = None, # NEW: Chatbot ID
-        user_context: Optional[Dict] = None # NEW: User Context for RBAC
+        user_context: Optional[Dict] = None, # NEW: User Context for RBAC
+        stream_callback: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> Dict[str, Any]:
         """
         Xử lý câu hỏi của người dùng theo quy trình RAG chuẩn.
@@ -79,13 +86,21 @@ class ChatService:
             "model_used": None,
             "reranker_used": None,
             "no_context": False,
+            "search_mode": "hybrid",
+            "similarity_threshold": 0.25,
         }
         start_total = time.time()
         
         # 0. Handle Session & History
+        conversation_summary = None
         if session_id and self.session_repo:
             # Save User Message first
             await self.session_repo.add_message(session_id, "user", question)
+            
+            # Load session summary
+            session_doc = await self.session_repo.get_session(session_id)
+            if session_doc:
+                conversation_summary = session_doc.get("conversation_summary")
             
             # If history not provided, load from session
             if not history:
@@ -101,7 +116,14 @@ class ChatService:
             raise ValueError("Câu hỏi không được để trống")
         
         dataset_ids = dataset_ids[:MAX_DATASETS_PER_REQUEST] if dataset_ids else []
-        logger.info(f"[CHAT] Xử lý câu hỏi: '{question[:50]}...' | Datasets: {len(dataset_ids)} | Session: {session_id}")
+        logger.info(
+            "[CHAT] Xử lý câu hỏi: '%s...' | Datasets: %s | Session: %s | cache=%s fast_path=%s",
+            question[:50],
+            len(dataset_ids),
+            session_id,
+            settings.semantic_cache_enabled,
+            settings.chat_fast_path,
+        )
 
         # 2. Check Semantic Cache (Tối ưu performance)
         # CRITICAL: Cache key MUST include chatbot_id to prevent cross-bot pollution
@@ -111,28 +133,51 @@ class ChatService:
         
         cache_key_suffix = f"_bot_{chatbot_id}" if chatbot_id else ""
         
-        if q_embedding is not None:
+        if settings.semantic_cache_enabled and q_embedding is not None:
             cached_resp = semantic_cache_service.get(question, q_embedding, suffix=cache_key_suffix)
             if cached_resp:
                 logger.info(f"[CHAT] Cache HIT (chatbot={chatbot_id}) - Trả về kết quả đã lưu.")
                 # Save cached answer if session exists
+                assistant_message_id = None
                 if session_id and self.session_repo:
-                     await self.session_repo.add_message(session_id, "assistant", cached_resp)
+                    saved = await self.session_repo.add_message(
+                        session_id,
+                        "assistant",
+                        cached_resp,
+                        extra={"latency_ms": 0, "cached": True},
+                    )
+                    assistant_message_id = saved.get("id")
+                if stream_callback:
+                    await stream_callback(cached_resp)
                 
                 debug_metrics["cache_hit"] = True
                 debug_metrics["total_time_ms"] = round((time.time() - start_total) * 1000, 2)
-                return self._format_response(question, cached_resp, [], [], cached=True, debug_metrics=debug_metrics)
+                return self._format_response(
+                    question, cached_resp, [], [], cached=True,
+                    debug_metrics=debug_metrics, message_id=assistant_message_id,
+                )
 
         # 3. Retrieval Process (Tìm kiếm dữ liệu từ Datasets)
         # Determine RAG Config
         rag_top_k = DEFAULT_TOP_K
         rag_reranker = None
-        rag_threshold = 0.5
+        rag_threshold = 0.25
         
         # 0.5 Fetch Chatbot Config & Enforce Context
         rag_api_key = None
+        rag_api_base_url = None
         rag_model = None
         rag_system_prompt = None
+        rag_temperature = 0.7
+        rag_max_tokens = 2048
+        
+        # Default: fast bot (no extra LLM hops). Accuracy bots opt in via config.
+        enable_query_reformulation = False
+        enable_history_compression = False
+        rag_search_mode = "hybrid"
+        history_limit = 3
+        buffer_limit = 2
+        compression_model = "gemini-1.5-flash"
         
         if chatbot_id and self.chatbot_repo:
             chatbot = await self.chatbot_repo.get_by_id(chatbot_id)
@@ -190,14 +235,65 @@ class ChatService:
                     rag_reranker = cfg.get("reranker")
                     rag_threshold = cfg.get("similarity_threshold", rag_threshold)
                     rag_api_key = cfg.get("api_key") # Extract API Key
+                    rag_api_base_url = cfg.get("api_base_url")  # Per-bot provider endpoint
                     rag_model = cfg.get("model")     # Extract Model
                     rag_system_prompt = cfg.get("system_prompt") # Extract Prompt
+                    rag_temperature = cfg.get("temperature", 0.7)
+                    rag_max_tokens = cfg.get("max_tokens", 2048)
+                    
+                    enable_query_reformulation = bool(cfg.get("enable_query_reformulation", False))
+                    enable_history_compression = bool(cfg.get("enable_history_compression", False))
+                    rag_search_mode = str(cfg.get("search_mode") or "hybrid").lower()
+                    if rag_search_mode not in {"hybrid", "vector", "keyword"}:
+                        rag_search_mode = "hybrid"
+                    history_limit = cfg.get("history_limit", 3)
+                    buffer_limit = cfg.get("buffer_limit", 2)
+                    compression_model = cfg.get("compression_model", "gemini-1.5-flash")
+                    debug_metrics["search_mode"] = rag_search_mode
+                    debug_metrics["similarity_threshold"] = rag_threshold
                     
                     # Update debug metrics with config info
                     debug_metrics["model_used"] = rag_model
                     debug_metrics["reranker_used"] = rag_reranker
 
                 
+        # 2.5 Query Reformulation (Viết lại truy vấn dựa trên lịch sử để tăng độ chính xác)
+        search_query = question
+        search_embedding = q_embedding
+        
+        if (
+            enable_query_reformulation
+            and not settings.chat_fast_path
+            and history
+            and len(history) >= 3
+        ):
+            # Bỏ tin nhắn user vừa gửi ở cuối cùng để lấy lịch sử hội thoại trước đó
+            past_history = history[:-1]
+            reformulation_prompt = prompt_service.build_reformulation_prompt(past_history, question)
+            try:
+                logger.info(f"[CHAT] Đang viết lại truy vấn bằng model={compression_model}...")
+                rewritten_query = await self._generate_answer(
+                    prompt=reformulation_prompt,
+                    api_key=rag_api_key,
+                    model_name=compression_model,
+                    temperature=0.0,
+                    base_url=rag_api_base_url,
+                    max_tokens=128,
+                    timeout=8.0,
+                )
+                rewritten_query = rewritten_query.strip()
+                if rewritten_query and is_cacheable_answer(rewritten_query):
+                    search_query = rewritten_query
+                    logger.info(f"[CHAT] Đã viết lại câu hỏi: '{question}' -> '{search_query}'")
+                    # Tiến hành embed lại câu hỏi đã viết lại để tìm kiếm vector chính xác hơn
+                    start_reembed = time.time()
+                    new_embed = self._try_embed_question(search_query)
+                    if new_embed is not None:
+                        search_embedding = new_embed
+                        logger.info(f"[CHAT] Đã embed lại truy vấn mới trong {round((time.time() - start_reembed) * 1000, 2)}ms")
+            except Exception as ref_err:
+                logger.error(f"[CHAT] Query reformulation failed: {ref_err}")
+
         grouped_results = []
         errors = []
         
@@ -209,9 +305,10 @@ class ChatService:
             for ds_id in dataset_ids:
                 res = await self._search_dataset(
                     ds_id, 
-                    question, 
-                    q_embedding,
-                    top_k=rag_top_k
+                    search_query,
+                    search_embedding,
+                    top_k=rag_top_k,
+                    search_mode=rag_search_mode,
                 )
                 grouped_results.append(res)
                 if res.get("error"):
@@ -232,9 +329,39 @@ class ChatService:
 
         # 4. Reranking Process (Sắp xếp lại kết quả) with timing
         start_rerank = time.time()
-        if rag_reranker and rag_reranker != "None":
-            self._apply_reranking(question, grouped_results, reranker_model=rag_reranker)
+        if settings.chat_fast_path:
+            logger.info("[CHAT] fast_path: skip rerank")
+            debug_metrics["reranker_used"] = None
+        elif rag_reranker and rag_reranker != "None":
+            self._apply_reranking(search_query, grouped_results, reranker_model=rag_reranker)
         debug_metrics["rerank_time_ms"] = round((time.time() - start_rerank) * 1000, 2)
+        apply_score_threshold(grouped_results, rag_threshold)
+
+        # 4.3 Parent-Child Retrieval: Thay thế child chunks bằng parent chunks để gửi làm context cho LLM
+        parent_chunk_ids = set()
+        for g in grouped_results:
+            for r in g.get("results", []):
+                pid = r.get("parent_chunk_id")
+                if pid:
+                    parent_chunk_ids.add(pid)
+                    
+        if parent_chunk_ids:
+            try:
+                logger.info(f"[CHAT] Đang lấy nội dung cho {len(parent_chunk_ids)} Parent chunks từ MongoDB...")
+                parent_docs = await self.chunk_repo.get_parent_chunks_by_ids(list(parent_chunk_ids))
+                parent_map = {str(doc["id"]): doc for doc in parent_docs}
+                
+                replaced_count = 0
+                for g in grouped_results:
+                    for r in g.get("results", []):
+                        pid = r.get("parent_chunk_id")
+                        if pid and pid in parent_map:
+                            r["child_text"] = r["text"]  # Lưu lại child text thô
+                            r["text"] = parent_map[pid].get("text")  # Ghi đè bằng parent text
+                            replaced_count += 1
+                logger.info(f"[CHAT] Đã thay thế thành công {replaced_count} child chunks bằng parent chunks.")
+            except Exception as pe_err:
+                logger.error(f"[CHAT] Lỗi khi mapping parent chunks: {str(pe_err)}")
 
         # 4.5 ✅ NO CONTEXT BEHAVIOR - Xử lý khi không tìm thấy tài liệu
         # Đếm số chunks thực sự tìm được và calculate metrics
@@ -285,8 +412,15 @@ class ChatService:
             
             # Nếu không phải fallback_llm thì return ngay
             if no_context_behavior != "fallback_llm":
+                assistant_message_id = None
                 if session_id and self.session_repo:
-                    await self.session_repo.add_message(session_id, "assistant", no_context_answer)
+                    saved = await self.session_repo.add_message(
+                        session_id, "assistant", no_context_answer,
+                        extra={"no_context": True},
+                    )
+                    assistant_message_id = saved.get("id")
+                if stream_callback:
+                    await stream_callback(no_context_answer)
                 
                 debug_metrics["total_time_ms"] = round((time.time() - start_total) * 1000, 2)
                 return self._format_response(
@@ -296,43 +430,123 @@ class ChatService:
                     errors, 
                     cached=False,
                     no_context=True,
-                    debug_metrics=debug_metrics
+                    debug_metrics=debug_metrics,
+                    message_id=assistant_message_id,
                 )
 
+        # 4.7 History Compression (Nén lịch sử hội thoại nếu vượt quá ngưỡng đệm tích lũy)
+        history_for_prompt = history[:-1] if history else []
+        
+        if (
+            enable_history_compression
+            and not settings.chat_fast_path
+            and session_id
+            and history
+            and (len(history) - 1) > 2 * (history_limit + buffer_limit)
+        ):
+            num_keep = 2 * history_limit
+            # Tin nhắn cần nén: tất cả trừ num_keep tin nhắn gần nhất trong lịch sử cũ
+            messages_to_compress = history[:-1][:-num_keep]
+            raw_history_to_keep = history[:-1][-num_keep:]
+            
+            if messages_to_compress:
+                compression_prompt = prompt_service.build_compression_prompt(
+                    old_summary=conversation_summary,
+                    messages_to_compress=messages_to_compress
+                )
+                try:
+                    logger.info(f"[CHAT] Đang nén {len(messages_to_compress)} tin nhắn cũ trong session {session_id} với model={compression_model}...")
+                    new_summary = await self._generate_answer(
+                        prompt=compression_prompt,
+                        api_key=rag_api_key,
+                        model_name=compression_model,
+                        temperature=0.3,
+                        base_url=rag_api_base_url,
+                        max_tokens=256,
+                        timeout=8.0,
+                    )
+                    new_summary = new_summary.strip()
+                    if new_summary and is_cacheable_answer(new_summary):
+                        conversation_summary = new_summary
+                        # Cập nhật vào DB
+                        await self.session_repo.update_session(session_id, {"conversation_summary": conversation_summary})
+                        logger.info(f"[CHAT] Đã cập nhật conversation_summary thành công cho session {session_id}")
+                        history_for_prompt = raw_history_to_keep
+                except Exception as comp_err:
+                    logger.error(f"[CHAT] History compression failed: {comp_err}")
+        
         # 5. Generation Process (Sinh câu trả lời từ LLM) - CHỈ khi có context hoặc fallback_llm
         start_llm = time.time()
         prompt = prompt_service.build_prompt(
-            question, 
-            grouped_results, 
-            history, 
-            system_prompt=rag_system_prompt
+            question=question, # Trả lời cho câu hỏi gốc của user
+            grouped_results=grouped_results, 
+            history=history_for_prompt, 
+            system_prompt=rag_system_prompt,
+            conversation_summary=conversation_summary
         )
-        answer = await self._generate_answer(
-            prompt, 
-            api_key=rag_api_key, 
-            model_name=rag_model
-        )
+        if stream_callback:
+            parts: List[str] = []
+            async for token in llm_service.generate_stream(
+                prompt,
+                api_key=rag_api_key,
+                model_name=rag_model,
+                temperature=rag_temperature,
+                max_tokens=rag_max_tokens,
+                base_url=rag_api_base_url,
+            ):
+                if token:
+                    parts.append(token)
+                    await stream_callback(token)
+            answer = "".join(parts).strip() or "Xin lỗi, mô hình AI đã trả về câu trả lời rỗng."
+        else:
+            answer = await self._generate_answer(
+                prompt, 
+                api_key=rag_api_key, 
+                model_name=rag_model,
+                temperature=rag_temperature,
+                max_tokens=rag_max_tokens,
+                base_url=rag_api_base_url,
+            )
         debug_metrics["llm_time_ms"] = round((time.time() - start_llm) * 1000, 2)
 
         # 6. Save Cache (with chatbot_id to isolate per-bot cache)
-        if q_embedding is not None and answer and not errors:
+        if (
+            settings.semantic_cache_enabled
+            and q_embedding is not None
+            and is_cacheable_answer(answer)
+            and not errors
+        ):
             semantic_cache_service.set(question, q_embedding, answer, suffix=cache_key_suffix)
             
-        # 7. Save Bot Message to Session
-        if session_id and self.session_repo:
-             await self.session_repo.add_message(session_id, "assistant", answer)
-
-        # Finalize debug metrics
+        # Finalize debug metrics before persist so latency is stored
         debug_metrics["total_time_ms"] = round((time.time() - start_total) * 1000, 2)
+
+        # 7. Save Bot Message to Session (keep sources for reload)
+        assistant_message_id = None
+        if session_id and self.session_repo:
+            saved = await self.session_repo.add_message(
+                session_id,
+                "assistant",
+                answer,
+                extra={
+                    "sources": grouped_results,
+                    "latency_ms": debug_metrics["total_time_ms"],
+                },
+            )
+            assistant_message_id = saved.get("id")
         
-        return self._format_response(question, answer, grouped_results, errors, cached=False, debug_metrics=debug_metrics)
+        return self._format_response(
+            question, answer, grouped_results, errors, cached=False,
+            debug_metrics=debug_metrics, message_id=assistant_message_id,
+        )
 
     async def _search_dataset(
         self, 
         dataset_id: str, 
         question: str,
         q_vec: Optional[np.ndarray],
-        top_k: int = DEFAULT_TOP_K
+        top_k: int = DEFAULT_TOP_K,
+        search_mode: str = "hybrid",
     ) -> Dict[str, Any]:
         """Tìm kiếm chunks liên quan trong một dataset cụ thể."""
         result_template = {
@@ -389,92 +603,97 @@ class ChatService:
             file_ids = [str(f.get("file_id")) for f in enabled_files if f.get("file_id")]
             
             if file_ids:
-                # Query File repository to get file names
-                from app.repositories.file_repository import FileRepository
-                from app.core.database import mongodb
-                file_repo = FileRepository(mongodb.client["airc_chatbot"])
-                
-                # Batch query all files
+                file_repo = self.file_repo
+                if file_repo is None:
+                    file_repo = FileRepository(self.dataset_repo.db)
+                file_docs = await file_repo.get_by_ids(file_ids)
+                for file_doc in file_docs:
+                    file_id_to_name_map[str(file_doc.get("id"))] = file_doc.get("name", "Unnamed File")
                 for file_id in file_ids:
-                    file_doc = await file_repo.get_by_id(file_id)
-                    if file_doc:
-                        file_id_to_name_map[file_id] = file_doc.get("name", "Unnamed File")
-                    else:
-                        file_id_to_name_map[file_id] = "Unknown File"
+                    file_id_to_name_map.setdefault(file_id, "Unknown File")
             
             # Inject File List info for LLM Context
             result_template["files"] = list(file_id_to_name_map.values())
 
-            # B. Vector Search với Filter
-            vector_results = []
-            try:
-                scores, payloads = vector_service.search(
-                    dataset_id, 
-                    q_vec, 
-                    top_k=top_k,
-                    allowed_file_ids=enabled_ids
+            mode = (search_mode or "hybrid").lower()
+            use_vector = mode in {"hybrid", "vector"}
+            use_keyword = mode in {"hybrid", "keyword"}
+
+            vector_ranked: List[tuple] = []
+            if use_vector:
+                try:
+                    scores, payloads = vector_service.search(
+                        dataset_id,
+                        q_vec,
+                        top_k=top_k,
+                        allowed_file_ids=enabled_ids,
+                    )
+                    if scores:
+                        for score, payload in zip(scores, payloads):
+                            payload["score"] = score
+                            vector_ranked.append((payload, float(score)))
+                except Exception as vs_err:
+                    logger.error(f"[CHAT] Vector search failed for {dataset_id}: {vs_err}")
+
+            regex_chunks = []
+            if use_keyword:
+                regex_chunks = await self.chunk_repo.search_by_text(
+                    query=question,
+                    dataset_file_ids=enabled_ids,
+                    limit=max(3, top_k),
                 )
-                if scores:
-                    for score, payload in zip(scores, payloads):
-                        payload["score"] = score
-                        vector_results.append(payload)
-            except Exception as vs_err:
-                 logger.error(f"[CHAT] Vector search failed for {dataset_id}: {vs_err}")
-                 # Continue to Regex search even if Vector fails
 
-            # C. Keyword/Regex Search (Always Run)
-            # Ensure we catch exact matches even if Vector Score is low or high
-            regex_chunks = await self.chunk_repo.search_by_text(
-                query=question,
-                dataset_file_ids=enabled_ids,
-                limit=3 # Add top 3 textual matches
-            )
-            
-            # D. Merge & Deduplicate
-            # Strategy: Regex matches get high priority (score=0.95) if not in vector results
-            final_results = []
-            seen_chunk_ids = set()
-            
-            # Helper to add result
-            def add_result(chunk_data, score, origin):
-                cid = str(chunk_data.get("_id") or chunk_data.get("id"))
-                if cid in seen_chunk_ids:
-                    return
-                seen_chunk_ids.add(cid)
-                
-                file_id = str(chunk_data.get("file_id"))
-                # ENHANCEMENT: Thêm file_name để frontend/LLM biết chunk này từ file nào
-                file_name = file_id_to_name_map.get(file_id, "Unknown File")
-                
-                cite_ref = f"[{dataset_id}:{file_id}:{chunk_data.get('chunk_index')}]"
-                final_results.append({
-                    "vector_id": cid,
-                    "score": score,
-                    "text": chunk_data.get("text"),
-                    "file_id": file_id,
-                    "file_name": file_name,  # ✨ NEW: Tên file cụ thể
-                    "dataset_file_id": chunk_data.get("dataset_file_id"),
-                    "chunk_index": chunk_data.get("chunk_index"),
-                    "cite": cite_ref,
-                    "origin": origin
-                })
-
-            # 1. Add Regex Results first (High Precision)
-            for chunk in regex_chunks:
-                add_result(chunk, 0.95, "regex")
-                
-            # 2. Add Vector Results
-            # Need to fetch content for vector results
-            if vector_results:
-                v_chunk_ids = [p["chunk_id"] for p in vector_results]
+            v_chunk_map = {}
+            if vector_ranked:
+                v_chunk_ids = [p["chunk_id"] for p, _ in vector_ranked]
                 v_chunks_db = await self.chunk_repo.get_by_ids(v_chunk_ids)
                 v_chunk_map = {str(c["id"]): c for c in v_chunks_db}
-                
-                for p in vector_results:
-                     cid = p["chunk_id"]
-                     cdata = v_chunk_map.get(cid)
-                     if cdata:
-                         add_result(cdata, p["score"], "vector")
+
+            vector_items = []
+            for payload, score in vector_ranked:
+                cdata = v_chunk_map.get(payload["chunk_id"])
+                if cdata:
+                    vector_items.append((cdata, score, "vector"))
+            keyword_items = [(chunk, None, "keyword") for chunk in regex_chunks]
+
+            if mode == "hybrid" and vector_items and keyword_items:
+                merged = rrf_merge(vector_items, keyword_items)
+            elif mode == "keyword":
+                merged = [
+                    (chunk, 1.0 / (60 + i + 1), "keyword", None)
+                    for i, (chunk, _, _) in enumerate(keyword_items)
+                ]
+            else:
+                merged = [(chunk, score, origin, score) for chunk, score, origin in vector_items]
+
+            final_results = []
+            seen_chunk_ids = set()
+            for row in merged:
+                chunk_data, score, origin = row[0], row[1], row[2]
+                raw_score = row[3] if len(row) > 3 else (score if origin == "vector" else None)
+                cid = str(chunk_data.get("_id") or chunk_data.get("id"))
+                if cid in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(cid)
+                file_id = str(chunk_data.get("file_id"))
+                file_name = file_id_to_name_map.get(file_id, "Unknown File")
+                cite_ref = f"[{dataset_id}:{file_id}:{chunk_data.get('chunk_index')}]"
+                vector_score = float(raw_score) if origin == "vector" and raw_score is not None else None
+                final_results.append({
+                    "vector_id": cid,
+                    "score": float(score or 0),
+                    "vector_score": vector_score,
+                    "text": chunk_data.get("text"),
+                    "embedding_text": chunk_data.get("embedding_text") or chunk_data.get("context_enriched_text"),
+                    "file_id": file_id,
+                    "file_name": file_name,
+                    "dataset_file_id": chunk_data.get("dataset_file_id"),
+                    "chunk_index": chunk_data.get("chunk_index"),
+                    "parent_chunk_id": chunk_data.get("parent_chunk_id"),
+                    "cite": cite_ref,
+                    "origin": origin,
+                    "page": chunk_data.get("page") or chunk_data.get("page_number"),
+                })
             
             if not final_results:
                 logger.info(f"[CHAT] No results (Vector+Regex) for dataset {dataset_id}")
@@ -548,10 +767,27 @@ class ChatService:
         except Exception as e:
             logger.warning(f"[CHAT] Rerank warning: {e}")
 
-    async def _generate_answer(self, prompt: str, api_key: Optional[str] = None, model_name: Optional[str] = None) -> str:
+    async def _generate_answer(
+        self, 
+        prompt: str, 
+        api_key: Optional[str] = None, 
+        model_name: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+        base_url: Optional[str] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
         """Gọi LLM sinh câu trả lời, handle lỗi."""
         try:
-            return await llm_service.generate(prompt, api_key=api_key, model_name=model_name)
+            return await llm_service.generate(
+                prompt, 
+                api_key=api_key, 
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                base_url=base_url,
+                timeout=timeout,
+            )
         except Exception as e:
             logger.exception(f"[CHAT] LLM Generation Error: {e}")
             return "Xin lỗi, hệ thống AI đang gặp sự cố. Vui lòng thử lại sau."
@@ -564,7 +800,8 @@ class ChatService:
         errors: List[Dict],
         cached: bool,
         no_context: bool = False,
-        debug_metrics: Optional[Dict[str, Any]] = None
+        debug_metrics: Optional[Dict[str, Any]] = None,
+        message_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Format JSON trả về cho Clients."""
         return {
@@ -574,5 +811,6 @@ class ChatService:
             "errors": errors,
             "cached": cached,
             "no_context": no_context,  # Flag cho frontend biết không có context RAG
-            "debug": debug_metrics  # Debug metrics for performance analysis
+            "debug": debug_metrics,  # Debug metrics for performance analysis
+            "message_id": message_id,
         }

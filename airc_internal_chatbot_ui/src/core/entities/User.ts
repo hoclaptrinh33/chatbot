@@ -53,6 +53,7 @@ export interface User {
     role: UserRole | string;
     is_active: boolean;
     avatar_url?: string;
+    department?: string;
     created_at: string;
     updated_at?: string;
 }

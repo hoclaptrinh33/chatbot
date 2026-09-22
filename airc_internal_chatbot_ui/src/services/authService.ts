@@ -83,9 +83,14 @@ class AuthService implements IAuthService {
     /**
      * Lay danh sach tat ca users (Admin only)
      */
-    public async getAllUsers(token: string): Promise<User[]> {
+    public async getAllUsers(token: string, role?: string, department?: string): Promise<User[]> {
+        const params: Record<string, string> = {};
+        if (role) params.role = role;
+        if (department) params.department = department;
+
         const response = await this.api.get<User[]>('/users', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${token}` },
+            params
         });
         return response.data;
     }
@@ -110,6 +115,21 @@ class AuthService implements IAuthService {
         await this.api.delete(`/users/${id}`, {
             headers: { Authorization: `Bearer ${token}` }
         });
+    }
+
+    public async getUser(id: string, token: string): Promise<User> {
+        const response = await this.api.get<User>(`/users/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        return response.data;
+    }
+
+    public async forgotPassword(email: string): Promise<void> {
+        await this.api.post('/forgot-password', { email });
+    }
+
+    public async resetPassword(token: string, newPassword: string): Promise<void> {
+        await this.api.post('/reset-password', { token, new_password: newPassword });
     }
 }
 

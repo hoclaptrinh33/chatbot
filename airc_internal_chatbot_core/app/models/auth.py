@@ -56,6 +56,30 @@ class Permission(str, Enum):
     RBAC_MANAGE_PERMISSIONS = "rbac:manage_permissions"
 
 
+# Role → permission matrix (aligned with Auth service).
+# Teacher also gets ANALYTICS_VIEW so the existing dashboard stays available.
+ROLE_PERMISSIONS: dict[UserRole, list[Permission]] = {
+    UserRole.ADMIN: list(Permission),
+    UserRole.TEACHER: [
+        Permission.DATASETS_VIEW_ALL,
+        Permission.DATASETS_CREATE,
+        Permission.DATASETS_UPDATE_OWN,
+        Permission.DATASETS_DELETE_OWN,
+        Permission.DATASETS_SHARE,
+        Permission.CHATBOTS_USE,
+        Permission.CHAT_USE,
+        Permission.CHAT_VIEW_OWN,
+        Permission.ANALYTICS_VIEW,
+    ],
+    UserRole.STUDENT: [
+        Permission.DATASETS_VIEW_SHARED,
+        Permission.CHATBOTS_USE,
+        Permission.CHAT_USE,
+        Permission.CHAT_VIEW_OWN,
+    ],
+}
+
+
 class User(BaseModel):
     """User Model cho Core Service"""
     id: str = "unknown"
@@ -64,3 +88,22 @@ class User(BaseModel):
     full_name: str
     role: UserRole = UserRole.STUDENT
     is_active: bool = True
+
+
+def normalize_role(role: UserRole | str) -> UserRole:
+    if isinstance(role, UserRole):
+        return role
+    role_str = str(role).lower().strip()
+    if "." in role_str:
+        role_str = role_str.split(".")[-1]
+    try:
+        return UserRole(role_str)
+    except ValueError:
+        return UserRole.STUDENT
+
+
+def user_has_permission(user: User, permission: Permission) -> bool:
+    role = normalize_role(user.role)
+    if role == UserRole.ADMIN:
+        return True
+    return permission in ROLE_PERMISSIONS.get(role, [])

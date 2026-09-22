@@ -374,23 +374,14 @@ async def share_dataset(
         if user_role == "teacher" and dataset.get("owner_id") != current_user.user_id:
             raise HTTPException(status_code=403, detail="Not your dataset")
         
-        # Get student IDs
+        # "*" = every current and future student (matched in get_shared_with_user)
         if payload.get("all_students"):
-            # TODO: Call Auth service to get all students
-            # For now, if all_students is true, we might loop through all users with role 'student'
-            # OR we can assume the UI sends specific IDs.
-            # To fix 500, let's just initialize it empty but NOT crash.
-            # Ideally: student_ids = await auth_service.get_all_students()
-            student_ids = [] 
-            logger.warning("Share with all students not fully implemented yet")
+            student_ids = ["*"]
         else:
-            student_ids = payload.get("student_ids", [])
-            
-        if not student_ids and not payload.get("all_students"):
-             # If no students provided
-             pass
-        
-        # Share dataset
+            student_ids = [sid for sid in payload.get("student_ids", []) if sid]
+            if not student_ids:
+                raise HTTPException(status_code=400, detail="Chọn ít nhất một sinh viên hoặc chia sẻ với tất cả")
+
         success = await dataset_service.share_dataset(dataset_id, student_ids)
         if not success:
             raise HTTPException(status_code=400, detail="Failed to share dataset")

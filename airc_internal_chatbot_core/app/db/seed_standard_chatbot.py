@@ -54,7 +54,7 @@ async def seed():
             "dataset_ids": valid_dataset_ids,
             "allowed_roles": ["student"], # STRICTLY STUDENT
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "gemma-4-26b-qat",
                 "temperature": 0.7,
                 "system_prompt": "Bạn là trợ lý ảo hỗ trợ sinh viên AIRC. Hãy giải thích kỹ thuật một cách dễ hiểu, tập trung vào kiến thức cơ bản.",
                 "search_mode": "hybrid", 
@@ -74,7 +74,7 @@ async def seed():
             "dataset_ids": valid_dataset_ids,
             "allowed_roles": ["teacher"], # STRICTLY TEACHER
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "qwen-3.6-35b",
                 "temperature": 0.5,
                 "system_prompt": "Bạn là trợ lý ảo hỗ trợ giảng viên AIRC. Hãy cung cấp thông tin chuyên sâu, trích dẫn tài liệu chính xác và hỗ trợ soạn thảo nội dung học thuật.",
                 "search_mode": "hybrid", 
@@ -94,7 +94,7 @@ async def seed():
             "dataset_ids": valid_dataset_ids, # Admin sees all
             "allowed_roles": ["admin"], # STRICTLY ADMIN
             "config": {
-                "model": "models/gemini-2.5-flash",
+                "model": "qwen-3.6-35b",
                 "temperature": 0.1,
                 "system_prompt": "Bạn là trợ lý quản trị hệ thống. Trả lời ngắn gọn, súc tích và chính xác.",
                 "search_mode": "hybrid", 

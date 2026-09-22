@@ -123,3 +123,23 @@ test_*.json
 *.bin
 *.pt
 *.onnx
+
+# Temporary scratch files & reports
+/output/
+extracted_pages.txt
+test_render.*
+build_airc_pdf.py
+build_plain_pdf.py
+*.js
+!airc_internal_chatbot_ui/**
+
+# Local tooling & agents
+/.agents/
+/.claude/
+/.gitnexus/
+/AGENTS.md
+/CLAUDE.md
+/skills-lock.json
+/package.json
+/package-lock.json
+

@@ -17,13 +17,16 @@ import {
     Col,
     Tooltip,
     Alert,
-    Tag
+    Tag,
+    Switch
 } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, QuestionCircleOutlined, LockOutlined } from '@ant-design/icons';
+import { SaveOutlined, ArrowLeftOutlined, QuestionCircleOutlined, LockOutlined, HistoryOutlined } from '@ant-design/icons';
 import MainLayout from '@/components/Layout/MainLayout';
 import AuthGuard from '@/components/Auth/AuthGuard';
+import LlmModelSelect from '@/components/Admin/LlmModelSelect';
 import { chatbotService } from '@/services/chatbotService';
 import datasetService from '@/services/datasetService';
+import { llmModelsHint, pickModelForProvider, useLlmModels } from '@/hooks/useLlmModels';
 import { ChatbotCreate } from '@/types/chatbot';
 import { Dataset } from '@/core/entities/Dataset';
 import { useRouter } from 'next/navigation';
@@ -40,11 +43,48 @@ export default function CreateChatbotPage() {
     const [form] = Form.useForm();
 
     const noContextBehavior = Form.useWatch('no_context_behavior', form);
+    const enableHistoryCompression = Form.useWatch('enable_history_compression', form);
+    const apiBaseUrl = Form.useWatch('api_base_url', form);
+    const apiKey = Form.useWatch('api_key', form);
+    const { models: llmModels, defaultModel, loading: loadingModels, error: modelsError } = useLlmModels({
+        apiBaseUrl,
+        apiKey,
+    });
+    const providerKeyRef = React.useRef<string | undefined>(undefined);
 
     useEffect(() => {
         fetchDatasets();
         fetchRolesWithChatbot();
     }, []);
+
+    useEffect(() => {
+        if (!llmModels.length) return;
+        const providerKey = `${(apiBaseUrl || '').trim()}|${(apiKey || '').trim()}`;
+        const providerChanged = providerKeyRef.current !== providerKey;
+        providerKeyRef.current = providerKey;
+        const nextModel = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('model'),
+            defaultModel,
+            providerChanged,
+        );
+        const nextCompression = pickModelForProvider(
+            llmModels,
+            form.getFieldValue('compression_model'),
+            nextModel || defaultModel,
+            providerChanged,
+        );
+        const patch: Record<string, string> = {};
+        if (nextModel && nextModel !== form.getFieldValue('model')) {
+            patch.model = nextModel;
+        }
+        if (nextCompression && nextCompression !== form.getFieldValue('compression_model')) {
+            patch.compression_model = nextCompression;
+        }
+        if (Object.keys(patch).length) {
+            form.setFieldsValue(patch);
+        }
+    }, [llmModels, defaultModel, apiBaseUrl, apiKey, form]);
 
     const fetchDatasets = async () => {
         try {
@@ -84,12 +124,13 @@ export default function CreateChatbotPage() {
                     // Retrieval
                     search_mode: (values.search_mode as 'hybrid' | 'vector' | 'keyword') || 'hybrid',
                     top_k: (values.top_k as number) || 5,
-                    similarity_threshold: (values.similarity_threshold as number) ?? 0.5,
+                    similarity_threshold: (values.similarity_threshold as number) ?? 0.25,
                     // Reranking
                     reranker: (values.reranker as string) || 'Semantic',
                     rerank_top_n: (values.rerank_top_n as number) || undefined,
                     // LLM Generation
-                    model: (values.model as string) || 'models/gemini-2.5-flash',
+                    model: (values.model as string) || undefined,
+                    api_base_url: (values.api_base_url as string) || undefined,
                     api_key: (values.api_key as string) || undefined,
                     temperature: (values.temperature as number) ?? 0.7,
                     max_tokens: (values.max_tokens as number) || 2048,
@@ -97,6 +138,12 @@ export default function CreateChatbotPage() {
                     // No context behavior
                     no_context_behavior: (values.no_context_behavior as 'reject' | 'fallback_llm' | 'custom_message') || 'reject',
                     no_context_message: (values.no_context_message as string) || undefined,
+                    // History & Context Enrichment
+                    enable_query_reformulation: values.enable_query_reformulation as boolean,
+                    enable_history_compression: values.enable_history_compression as boolean,
+                    history_limit: values.history_limit as number,
+                    buffer_limit: values.buffer_limit as number,
+                    compression_model: values.compression_model as string,
                 }
             };
 
@@ -199,12 +246,17 @@ export default function CreateChatbotPage() {
                                 embedding_model: 'vietnamese-sbert',
                                 search_mode: 'hybrid',
                                 top_k: 5,
-                                similarity_threshold: 0.5,
+                                similarity_threshold: 0.25,
                                 reranker: 'ms-marco-MiniLM-L-6-v2',
-                                model: 'models/gemini-2.5-flash',
+                                model: undefined,
                                 temperature: 0.7,
                                 max_tokens: 2048,
                                 no_context_behavior: 'reject',
+                                enable_query_reformulation: false,
+                                enable_history_compression: false,
+                                history_limit: 3,
+                                buffer_limit: 2,
+                                compression_model: undefined,
                             }}
                         >
                             {/* SECTION 1: THÔNG TIN CƠ BẢN */}
@@ -351,7 +403,7 @@ export default function CreateChatbotPage() {
                                                 name="similarity_threshold"
                                                 label={<>Ngưỡng tương đồng <Tooltip title="0.0 - 1.0"><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></>}
                                             >
-                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.3: '0.3', 0.5: '0.5', 0.7: '0.7' }} />
+                                                <Slider min={0.1} max={0.9} step={0.05} marks={{ 0.25: '0.25', 0.5: '0.5', 0.7: '0.7' }} />
                                             </Form.Item>
                                         </Col>
                                     </Row>
@@ -435,16 +487,42 @@ export default function CreateChatbotPage() {
                                     <span style={{ fontWeight: 500 }}>Sinh câu trả lời từ AI</span>
                                 </div>
 
-                                <Form.Item name="model" label="AI Model">
-                                    <Select size="large">
-                                        <Option value="models/gemini-2.5-flash">Gemini 2.5 Flash <Tag color="green">Nhanh</Tag></Option>
-                                        <Option value="models/gemini-2.5-pro">Gemini 2.5 Pro <Tag color="purple">Thông minh</Tag></Option>
-                                        <Option value="models/gemini-2.0-flash">Gemini 2.0 Flash</Option>
-                                    </Select>
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    style={{ marginBottom: 16 }}
+                                    message="Endpoint và API key phải cùng nhà cung cấp"
+                                    description="Chỉ nhập API key thì key vẫn gửi tới endpoint hệ thống — Gemini key không chạy trên Ollama và ngược lại. Muốn dùng provider khác, nhập cả Endpoint và API Key của provider đó."
+                                />
+
+                                <Form.Item
+                                    name="api_base_url"
+                                    label="LLM Endpoint riêng"
+                                    extra="Để trống = dùng endpoint trong Cài đặt hệ thống. Ví dụ: https://api.openai.com/v1"
+                                    rules={[
+                                        {
+                                            pattern: /^$|^https?:\/\/.+/i,
+                                            message: 'Endpoint phải bắt đầu bằng http:// hoặc https://',
+                                        },
+                                    ]}
+                                >
+                                    <Input
+                                        size="large"
+                                        placeholder="Để trống = endpoint hệ thống"
+                                    />
                                 </Form.Item>
 
                                 <Form.Item name="api_key" label="API Key riêng (tùy chọn)">
-                                    <Input.Password placeholder="Để trống = dùng key hệ thống" size="large" />
+                                    <Input.Password placeholder="Để trống = dùng key hệ thống (cùng endpoint hệ thống)" size="large" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    name="model"
+                                    label="AI Model"
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập tên AI Model' }]}
+                                >
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
 
                                 <Row gutter={24}>
@@ -466,6 +544,78 @@ export default function CreateChatbotPage() {
                                         placeholder="VD: Bạn là trợ lý AI của AIRC. Trả lời ngắn gọn, trích dẫn nguồn..."
                                         style={{ fontFamily: 'monospace' }}
                                     />
+                                </Form.Item>
+                            </Card>
+
+                            {/* SECTION 4.5: QUẢN LÝ LỊCH SỬ & NGỮ CẢNH */}
+                            <Card
+                                title="Quản lý lịch sử & Ngữ cảnh"
+                                style={{ marginBottom: 24, borderRadius: 8 }}
+                                styles={{ header: { borderBottom: '2px solid #13c2c2' } }}
+                            >
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
+                                    padding: '8px 12px', background: '#e6fffb', borderRadius: 6
+                                }}>
+                                    <HistoryOutlined style={{ fontSize: 18, color: '#13c2c2' }} />
+                                    <span style={{ fontWeight: 500 }}>Nén ngữ cảnh & Viết lại câu hỏi</span>
+                                </div>
+
+                                <Row gutter={24}>
+                                    <Col span={12}>
+                                        <Form.Item 
+                                            name="enable_query_reformulation" 
+                                            label="Viết lại câu hỏi (Query Reformulation)" 
+                                            valuePropName="checked"
+                                            tooltip="Tự động phân tích lịch sử để viết lại câu hỏi hiện tại thành một truy vấn độc lập hoàn chỉnh trước khi tìm kiếm vector."
+                                        >
+                                            <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item 
+                                            name="enable_history_compression" 
+                                            label="Tóm tắt lịch sử (History Compression)" 
+                                            valuePropName="checked"
+                                            tooltip="Tóm tắt các tin nhắn cũ hơn khi cuộc trò chuyện vượt quá giới hạn, giúp tiết kiệm token và tránh vượt quá giới hạn ngữ cảnh của mô hình sinh."
+                                        >
+                                            <Switch checkedChildren="Bật" unCheckedChildren="Tắt" />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+
+                                {enableHistoryCompression && (
+                                    <div style={{ padding: '16px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0', marginBottom: 16 }}>
+                                        <Row gutter={24}>
+                                            <Col span={12}>
+                                                <Form.Item 
+                                                    name="history_limit" 
+                                                    label="Số lượt chat giữ lại (History Limit)"
+                                                    tooltip="Số lượng lượt chat gần nhất được giữ nguyên ở dạng thô để duy trì sự mạch lạc tự nhiên."
+                                                >
+                                                    <InputNumber min={1} max={10} style={{ width: '100%' }} size="large" />
+                                                </Form.Item>
+                                            </Col>
+                                            <Col span={12}>
+                                                <Form.Item 
+                                                    name="buffer_limit" 
+                                                    label="Ngưỡng đệm (Buffer Limit)"
+                                                    tooltip="Số lượt chat tối đa được phép vượt quá giới hạn trước khi chạy tiến trình tóm tắt tiếp theo (giúp giảm thiểu chi phí LLM)."
+                                                >
+                                                    <InputNumber min={1} max={5} style={{ width: '100%' }} size="large" />
+                                                </Form.Item>
+                                            </Col>
+                                        </Row>
+                                    </div>
+                                )}
+
+                                <Form.Item 
+                                    name="compression_model" 
+                                    label="AI Model dùng để tóm tắt/viết lại"
+                                    extra={llmModelsHint(loadingModels, modelsError, llmModels.length)}
+                                    rules={[{ required: true, message: 'Vui lòng chọn hoặc nhập model tóm tắt' }]}
+                                >
+                                    <LlmModelSelect models={llmModels} loading={loadingModels} />
                                 </Form.Item>
                             </Card>
 

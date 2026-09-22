@@ -1,11 +1,19 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure HuggingFace cache directory for docling models
+ENV HF_HOME=/app/models_cache
+ENV HF_HUB_DISABLE_SYMLINKS_WARNING=1
+
 
 # Copy requirements
 COPY requirements.txt .

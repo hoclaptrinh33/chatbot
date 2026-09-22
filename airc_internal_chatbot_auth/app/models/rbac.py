@@ -110,6 +110,11 @@ class AssignRoleRequest(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="Thời gian hết hạn (temporary role)")
 
 
+class SetUserRolesRequest(BaseModel):
+    """Replace the full role set of a user"""
+    role_ids: List[str] = Field(default_factory=list, description="Danh sách role IDs mới")
+
+
 class UserRoleResponse(BaseModel):
     """User-Role assignment response"""
     id: str = Field(alias="_id")

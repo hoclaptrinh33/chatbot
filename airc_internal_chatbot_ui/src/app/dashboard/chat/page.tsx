@@ -3,20 +3,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Input, Button, Typography,
-    Card, Space, Avatar, Spin, Select
+    Space, Select, Tooltip
 } from 'antd';
-import { SendOutlined, UserOutlined, RobotOutlined } from '@ant-design/icons';
+import { SendOutlined, AudioOutlined } from '@ant-design/icons';
 import Image from 'next/image';
 import useChatStore from '@/stores/chatStore';
 import useDatasetStore from '@/stores/datasetStore';
 import StudentChat from '@/components/Student/StudentChat';
 import ChatSidebar from './ChatSidebar';
-import ReactMarkdown from 'react-markdown';
 import useAuthStore from '@/stores/authStore';
+import LiveVoiceModal from '@/components/VoiceBot/LiveVoiceModal';
 import AuthGuard from '@/components/Auth/AuthGuard';
 import { chatbotService } from '@/services/chatbotService';
 import { Chatbot } from '@/types/chatbot';
-import RAGDebugPanel from '@/components/Chat/RAGDebugPanel';
+import ChatTranscript from '@/components/Chat/ChatTranscript';
+import { useChatBranches } from '@/hooks/useChatBranches';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -25,14 +26,16 @@ const { Option } = Select;
 export default function ChatPage() {
     const { user } = useAuthStore();
     const {
-        messages, loading: chatLoading, chatbotId, lastDebugMetrics,
-        sendMessage, loadSessions, selectChatbot
+        messages, loading: chatLoading, chatbotId,
+        sendMessage, loadSessions, selectChatbot,
     } = useChatStore();
+    const { getBranchesAt } = useChatBranches();
 
     const { fetchDatasets } = useDatasetStore();
 
     const [input, setInput] = useState('');
     const [chatbots, setChatbots] = useState<Chatbot[]>([]);
+    const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const lastUserIdRef = useRef<string | null>(null);
     const isInitializedRef = useRef(false);
@@ -116,22 +119,14 @@ export default function ChatPage() {
 
     return (
         <AuthGuard>
-            <div className="h-[calc(100vh-140px)] flex flex-col md:flex-row gap-4">
+            <div className="h-[calc(100vh-96px)] flex flex-col md:flex-row border border-gray-200 rounded-lg shadow-sm overflow-hidden bg-white">
                 {/* Left Sidebar: Session & Dataset Manager */}
-                <div className="w-full md:w-80 shrink-0 h-full">
+                <div className="w-full md:w-80 shrink-0 h-full border-b md:border-b-0 md:border-r border-gray-200">
                     <ChatSidebar className="h-full" />
                 </div>
 
                 {/* Main Chat Area */}
-                <Card
-                    className="flex-1 flex flex-col h-full shadow-sm"
-                    bodyStyle={{
-                        padding: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        height: '100%'
-                    }}
-                >
+                <div className="flex-1 flex flex-col h-full bg-white">
                     {/* Header with AIRC Logo */}
                     <div className="p-4 border-b flex justify-between items-center bg-white rounded-t-lg">
                         <Space>
@@ -145,7 +140,7 @@ export default function ChatPage() {
                             <div>
                                 {chatbots.length > 1 ? (
                                     <Space direction="vertical" size={0}>
-                                        <Text type="secondary" className="text-xs">Current Assistant</Text>
+                                        <Text type="secondary" className="text-xs">Trợ lý hiện tại</Text>
                                         <Select
                                             value={chatbotId}
                                             onChange={handleChatbotChange}
@@ -161,7 +156,7 @@ export default function ChatPage() {
                                     </Space>
                                 ) : (
                                     <Title level={5} className="mb-0">
-                                        {currentChatbot?.name || "AIRC Assistant"}
+                                        {currentChatbot?.name || "Trợ lý AI AIRC"}
                                     </Title>
                                 )}
                             </div>
@@ -170,97 +165,73 @@ export default function ChatPage() {
 
                     {/* Messages List */}
                     <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-                        {messages.length === 0 ? (
-                            <div className="h-full flex flex-col justify-center items-center text-gray-400">
-                                <div className="w-24 h-24 mb-6">
-                                    <Image
-                                        src="/logo_airc.jpg"
-                                        alt="AIRC Logo"
-                                        width={96}
-                                        height={96}
-                                        className="object-contain"
-                                    />
+                        <ChatTranscript
+                            getBranchesAt={getBranchesAt}
+                            emptyHint={
+                                <div className="flex flex-col items-center">
+                                    <div className="w-24 h-24 mb-6">
+                                        <Image src="/logo_airc.jpg" alt="AIRC Logo" width={96} height={96} className="object-contain" />
+                                    </div>
+                                    <Title level={4} style={{ color: '#bfbfbf' }}>Bắt đầu trò chuyện</Title>
+                                    <Text type="secondary">Đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào.</Text>
                                 </div>
-                                <Title level={4} style={{ color: '#bfbfbf' }}>Bắt đầu trò chuyện</Title>
-                                <Text type="secondary">Đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào.</Text>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {messages.map((msg, idx) => (
-                                    <div
-                                        key={idx}
-                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                                    >
-                                        <div className={`max-w-[80%] flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                            <Avatar
-                                                icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                                                style={{
-                                                    backgroundColor: msg.role === 'user' ? '#87d068' : '#dc2626',
-                                                    flexShrink: 0
-                                                }}
-                                            />
-                                            <div
-                                                className={`p-3 rounded-lg shadow-sm ${msg.role === 'user'
-                                                    ? 'bg-red-600 text-white'
-                                                    : 'bg-white border'
-                                                    }`}
-                                            >
-                                                <div className={`prose max-w-none ${msg.role === 'user' ? 'text-white' : 'text-gray-800'}`}>
-                                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {chatLoading && (
-                                    <div className="flex justify-start">
-                                        <div className="max-w-[80%] flex gap-3">
-                                            <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#dc2626' }} />
-                                            <div className="bg-white border p-3 rounded-lg shadow-sm">
-                                                <Spin /> <span className="text-gray-400 text-sm ml-2">Đang xử lý...</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Debug Panel - Show after last response */}
-                                {lastDebugMetrics && !chatLoading && messages.length > 0 && (
-                                    <RAGDebugPanel metrics={lastDebugMetrics} />
-                                )}
-
-                                <div ref={messagesEndRef} />
-                            </div>
-                        )}
+                            }
+                        />
+                        <div ref={messagesEndRef} />
                     </div>
 
                     {/* Input Area */}
-                    <div className="p-4 border-t bg-white rounded-b-lg">
-                        <div className="flex gap-2">
-                            <TextArea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={handleKeyPress}
-                                placeholder="Nhập câu hỏi của bạn ở đây..."
-                                autoSize={{ minRows: 1, maxRows: 4 }}
-                                className="resize-none"
-                                disabled={chatLoading}
-                            />
-                            <Button
-                                type="primary"
-                                icon={<SendOutlined />}
-                                onClick={handleSend}
-                                loading={chatLoading}
-                                className="h-auto bg-red-600 hover:bg-red-700 border-none"
-                            >
-                                Gửi
-                            </Button>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-400 text-center">
-                            AIRC Assistant có thể mắc lỗi. Vui lòng kiểm tra lại thông tin quan trọng.
+                    <div className="p-4 bg-white border-t border-gray-100">
+                        <div className="max-w-3xl mx-auto relative">
+                            <div className="flex gap-2 items-end bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-red-100 focus-within:border-red-400 transition-all">
+                                <TextArea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={handleKeyPress}
+                                    placeholder="Nhập câu hỏi của bạn ở đây..."
+                                    autoSize={{ minRows: 1, maxRows: 6 }}
+                                    className="border-none shadow-none bg-transparent text-[16px] px-3 py-2 focus:ring-0 focus:border-transparent"
+                                    style={{ resize: 'none' }}
+                                    disabled={chatLoading}
+                                    bordered={false}
+                                    variant="borderless"
+                                />
+                                <Tooltip title={!chatbotId ? 'Hãy chọn chatbot trước khi bật Live Mode' : 'Bật Live Voice Mode'}>
+                                    <Button
+                                        type="default"
+                                        shape="circle"
+                                        size="large"
+                                        icon={<AudioOutlined className="text-red-600" />}
+                                        onClick={() => setIsLiveVoiceOpen(true)}
+                                        disabled={chatLoading || !chatbotId}
+                                        className="mb-0.5 border-gray-200 hover:border-red-400 flex items-center justify-center"
+                                    />
+                                </Tooltip>
+                                <Button
+                                    type="primary"
+                                    shape="circle"
+                                    size="large"
+                                    icon={<SendOutlined />}
+                                    onClick={handleSend}
+                                    disabled={!input.trim() || chatLoading}
+                                    loading={chatLoading}
+                                    className={`mb-0.5 mr-0.5 shadow-md flex items-center justify-center ${
+                                        input.trim() && !chatLoading
+                                            ? 'bg-red-600 hover:bg-red-700 border-none text-white'
+                                            : 'bg-gray-100 text-gray-400 border-none'
+                                    }`}
+                                />
+                            </div>
+                            <div className="mt-2 text-xs text-gray-400 text-center">
+                                AIRC Assistant có thể mắc lỗi. Vui lòng kiểm tra lại thông tin quan trọng.
+                            </div>
                         </div>
                     </div>
-                </Card>
+                </div>
             </div>
+            {isLiveVoiceOpen && (
+                <LiveVoiceModal onClose={() => setIsLiveVoiceOpen(false)} />
+            )}
         </AuthGuard>
     );
 }

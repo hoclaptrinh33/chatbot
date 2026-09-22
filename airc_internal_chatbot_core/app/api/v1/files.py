@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse as StreamFileResponse, StreamingRespo
 from app.models.schemas import FileUploadResponse, FileResponse
 from app.repositories import FileRepository
 from app.api.dependencies import get_file_repo, get_current_user
+from app.models.auth import User
 from app.models.enums import FileStatus
 from typing import List
 import logging
@@ -164,8 +165,8 @@ async def get_file(
 @router.get("/{file_id}/view")
 async def view_file_content(
     file_id: str,
+    current_user: User = Depends(get_current_user),
     file_repo: FileRepository = Depends(get_file_repo)
-    # Note: Permission check can be added here if needed
 ):
     """
     Xem/Download nội dung file

@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
     
-    # Gemini LLM
-    gemini_api_key: str
-    gemini_model: str = "models/gemini-2.5-flash"
+    # LLM Provider Configuration (OpenAI-compatible / Local or Cloud)
+    llm_api_base_url: str = "http://localhost:11434/v1"
+    llm_model_name: str = "gemma-4-26b-qat"
+    llm_api_key: Optional[str] = "ollama"
     
     # Qdrant Vector DB
     qdrant_url: str = "http://qdrant:6333"
@@ -36,6 +37,17 @@ class Settings(BaseSettings):
     
     # Upload
     max_upload_size: int = 209715200  # 200MB
+
+    # CORS + model warmup
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    preload_models: bool = False
+
+    # Chat latency knobs (test/debug)
+    semantic_cache_enabled: bool = True
+    chat_fast_path: bool = False
+
+    # Live-mode Edge-TTS voice
+    tts_voice: str = "vi-VN-HoaiMyNeural"
     
     class Config:
         env_file = ".env"

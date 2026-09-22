@@ -6,5 +6,4 @@ metadata:
   namespace: airc-chatbot
 spec:
   domains:
-    - chatbot.neovort.shop
-    - api.chatbot.neovort.shop
+    - ragairc.neovort.shop

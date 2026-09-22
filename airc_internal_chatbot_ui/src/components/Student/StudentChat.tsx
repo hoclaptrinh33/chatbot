@@ -4,12 +4,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-import { Input, Button, Avatar, Spin, List, Typography, message as antMessage } from 'antd';
-import { SendOutlined, RobotOutlined, UserOutlined, PlusOutlined, MessageOutlined, DeleteOutlined, LogoutOutlined, WarningOutlined } from '@ant-design/icons';
+import { Input, Button, Avatar, Spin, List, Typography, message as antMessage, Tooltip } from 'antd';
+import { SendOutlined, RobotOutlined, UserOutlined, PlusOutlined, MessageOutlined, DeleteOutlined, LogoutOutlined, WarningOutlined, AudioOutlined } from '@ant-design/icons';
 import useAuthStore from '@/stores/authStore';
 import useChatStore from '@/stores/chatStore';
 import { chatbotService } from '@/services/chatbotService';
 import { Chatbot } from '@/types/chatbot';
+import LiveVoiceModal from '@/components/VoiceBot/LiveVoiceModal';
+import ChatTranscript from '@/components/Chat/ChatTranscript';
+import { useChatBranches } from '@/hooks/useChatBranches';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -30,8 +33,9 @@ export default function StudentChat() {
         currentSessionId,
         deleteSession,
         selectChatbot,
-        chatbotId
+        chatbotId,
     } = useChatStore();
+    const { getBranchesAt } = useChatBranches();
 
     const router = useRouter();
     const { logout } = useAuthStore();
@@ -42,6 +46,7 @@ export default function StudentChat() {
     };
 
     const [inputValue, setInputValue] = useState('');
+    const [isLiveVoiceOpen, setIsLiveVoiceOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -145,7 +150,7 @@ export default function StudentChat() {
     };
 
     const filteredSessions = sessions.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase())
+        !s.parent_id && s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const activeSessionName = sessions.find(s => s.id === currentSessionId)?.name || 'Cuộc trò chuyện mới';
@@ -189,23 +194,6 @@ export default function StudentChat() {
             </div>
         );
     }
-
-    // Render empty state if no messages
-    const renderEmptyState = () => (
-        <div className="flex flex-col items-center justify-center h-full text-center p-8 opacity-80">
-            <div className="w-24 h-24 mb-6">
-                <Image
-                    src="/logo_airc.jpg"
-                    alt="AIRC Logo"
-                    width={96}
-                    height={96}
-                    className="object-contain"
-                />
-            </div>
-            <h1 className="text-2xl font-bold mb-3 text-gray-800">Xin chào! Tôi là AIRC Assistant</h1>
-            <p className="text-gray-500 max-w-md">Hãy đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào bạn cần hỗ trợ.</p>
-        </div>
-    );
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -329,7 +317,7 @@ export default function StudentChat() {
 
                     <div className="flex items-center gap-2">
                         <span className="hidden sm:inline text-xs text-white bg-red-500 px-2 py-1 rounded-full">
-                            RAG Enabled
+                            Đã bật RAG
                         </span>
                         {/* Mobile Logout */}
                         <Button
@@ -344,67 +332,50 @@ export default function StudentChat() {
 
                 {/* Messages List */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50">
-                    {messages.length === 0 ? renderEmptyState() : (
-                        <div className="max-w-3xl mx-auto space-y-6">
-                            {messages.map((msg) => {
-                                const isUser = msg.role === 'user';
-                                return (
-                                    <div key={msg.id} className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                                        {!isUser && (
-                                            <Avatar
-                                                icon={<RobotOutlined />}
-                                                className="bg-red-500 shadow-sm shrink-0 mt-1"
-                                            />
-                                        )}
-
-                                        <div className={`
-                                            max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 shadow-sm text-[15px] leading-relaxed
-                                            ${isUser
-                                                ? 'bg-red-600 text-white rounded-br-none'
-                                                : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'}
-                                        `}>
-                                            <div className="whitespace-pre-wrap">{msg.content}</div>
-                                        </div>
-
-                                        {isUser && (
-                                            <Avatar
-                                                icon={<UserOutlined />}
-                                                className="bg-gray-600 shadow-sm shrink-0 mt-1"
-                                                src={user?.avatar_url}
-                                            />
-                                        )}
+                    <div className="max-w-3xl mx-auto h-full">
+                        <ChatTranscript
+                            getBranchesAt={getBranchesAt}
+                            emptyHint={
+                                <div className="flex flex-col items-center text-center opacity-80">
+                                    <div className="w-24 h-24 mb-6">
+                                        <Image src="/logo_airc.jpg" alt="AIRC Logo" width={96} height={96} className="object-contain" />
                                     </div>
-                                );
-                            })}
-
-                            {loading && (
-                                <div className="flex gap-4 items-center">
-                                    <Avatar icon={<RobotOutlined />} className="bg-red-500" />
-                                    <div className="bg-white rounded-2xl px-5 py-3 border border-gray-200 shadow-sm">
-                                        <Spin size="small" />
-                                        <span className="text-gray-400 text-sm ml-2">Đang xử lý...</span>
-                                    </div>
+                                    <h1 className="text-2xl font-bold mb-3 text-gray-800">Xin chào! Tôi là AIRC Assistant</h1>
+                                    <p className="text-gray-500 max-w-md">Hãy đặt câu hỏi về quy chế, đào tạo, hoặc bất kỳ vấn đề nào bạn cần hỗ trợ.</p>
                                 </div>
-                            )}
-                            <div ref={messagesEndRef} />
-                        </div>
-                    )}
+                            }
+                        />
+                        <div ref={messagesEndRef} />
+                    </div>
                 </div>
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-gray-100">
                     <div className="max-w-3xl mx-auto relative">
-                        <div className="flex gap-2 items-end bg-white border border-gray-300 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-red-100 focus-within:border-red-400 transition-all">
+                        <div className="flex gap-2 items-end bg-white border border-gray-200 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-red-100 focus-within:border-red-400 transition-all">
                             <TextArea
                                 value={inputValue}
                                 onChange={e => setInputValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder={selectedChatbot ? "Nhập câu hỏi của bạn..." : "Đang tải chatbot..."}
                                 autoSize={{ minRows: 1, maxRows: 6 }}
-                                className="border-none shadow-none bg-transparent text-[16px] px-3 py-2"
+                                className="border-none shadow-none bg-transparent text-[16px] px-3 py-2 focus:ring-0 focus:border-transparent"
                                 style={{ resize: 'none' }}
                                 disabled={!selectedChatbot}
+                                bordered={false}
+                                variant="borderless"
                             />
+                            <Tooltip title={!selectedChatbot ? 'Hãy chọn chatbot trước khi bật Live Mode' : 'Bật Live Voice Mode'}>
+                                <Button
+                                    type="default"
+                                    shape="circle"
+                                    size="large"
+                                    icon={<AudioOutlined className="text-red-600" />}
+                                    onClick={() => setIsLiveVoiceOpen(true)}
+                                    disabled={loading || !selectedChatbot}
+                                    className="mb-0.5 border-gray-200 hover:border-red-400 flex items-center justify-center"
+                                />
+                            </Tooltip>
                             <Button
                                 type="primary"
                                 shape="circle"
@@ -412,7 +383,11 @@ export default function StudentChat() {
                                 icon={<SendOutlined />}
                                 onClick={handleSend}
                                 disabled={!inputValue.trim() || loading || !selectedChatbot}
-                                className="mb-0.5 mr-0.5 bg-red-600 hover:bg-red-700 border-none shadow-md"
+                                className={`mb-0.5 mr-0.5 shadow-md flex items-center justify-center ${
+                                    inputValue.trim() && !loading && selectedChatbot
+                                        ? 'bg-red-600 hover:bg-red-700 border-none text-white'
+                                        : 'bg-gray-100 text-gray-400 border-none'
+                                }`}
                             />
                         </div>
                         <div className="text-center mt-2">
@@ -423,6 +398,9 @@ export default function StudentChat() {
                     </div>
                 </div>
             </div>
+            {isLiveVoiceOpen && (
+                <LiveVoiceModal onClose={() => setIsLiveVoiceOpen(false)} />
+            )}
         </div>
     );
 }

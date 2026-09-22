@@ -22,7 +22,7 @@ interface ChatState {
 
     // Actions
     loadSessions: () => Promise<void>;
-    createSession: (name?: string) => Promise<string>;
+    createSession: (name?: string, parent_id?: string, branch_message_index?: number) => Promise<string>;
     selectSession: (sessionId: string) => Promise<void>;
     renameSession: (sessionId: string, name: string) => Promise<void>;
     deleteSession: (sessionId: string) => Promise<void>;
@@ -32,6 +32,8 @@ interface ChatState {
     selectChatbot: (id: string | null, datasetIds?: string[]) => void;
     clearHistory: () => void;
     resetStore: () => void; // NEW: Reset entire store (for logout/user change)
+    createBranch: (newContent: string, messageIndex: number) => Promise<void>;
+    regenerateMessage: (messageIndex: number) => Promise<void>;
 }
 
 const useChatStore = create<ChatState>()(
@@ -55,10 +57,10 @@ const useChatStore = create<ChatState>()(
                 }
             },
 
-            createSession: async (name: string = 'New Chat') => {
+            createSession: async (name: string = 'Cuộc trò chuyện mới', parent_id?: string, branch_message_index?: number) => {
                 set({ loading: true });
                 try {
-                    const session = await chatService.createSession(name);
+                    const session = await chatService.createSession(name, parent_id, branch_message_index);
                     const sessions = await chatService.getSessions();
                     set({
                         sessions,
@@ -77,7 +79,10 @@ const useChatStore = create<ChatState>()(
             selectSession: async (sessionId: string) => {
                 set({ loading: true, currentSessionId: sessionId });
                 try {
-                    const messages = await chatService.getMessages(sessionId);
+                    const messages = (await chatService.getMessages(sessionId)).map((msg) => ({
+                        ...msg,
+                        timestamp: msg.timestamp || msg.created_at,
+                    }));
                     set({ messages, loading: false });
                 } catch (error) {
                     console.error(error);
@@ -154,42 +159,66 @@ const useChatStore = create<ChatState>()(
                     // NOTE: Backend chat_service already saves user & assistant messages
                     // Do NOT call addMessage here to avoid duplicates!
 
-                    // Use only last 10 messages for context
                     const historyContext = newMessages.slice(-10);
-                    console.log('📚 [ChatStore] History context:', historyContext.length, 'messages');
-
-                    // Call RAG API (backend will save both user and bot messages)
-                    console.log('🤖 [ChatStore] Calling askQuestion API...', {
-                        question: question.substring(0, 50) + '...',
-                        datasetIds: datasetIds.length,
-                        chatbotId: chatbotId,
-                        historyLength: historyContext.length
-                    });
-
-                    const response = await chatService.askQuestion({
-                        question,
-                        dataset_ids: datasetIds.length > 0 ? datasetIds : undefined,
-                        chatbot_id: chatbotId || undefined,
-                        history: historyContext,
-                        session_id: sessionId
-                    });
-                    console.log('✅ [ChatStore] Got response from API:', response.answer.substring(0, 100) + '...');
-                    console.log('📊 [ChatStore] Debug metrics:', response.debug);
-
-                    // Add assistant response to UI
+                    const assistantLocalId = `pending-${Date.now()}`;
                     set((state) => ({
                         messages: [
                             ...state.messages,
                             {
                                 role: 'assistant',
-                                content: response.answer,
-                                id: Date.now().toString(),
-                                timestamp: new Date().toISOString()
+                                content: '',
+                                id: assistantLocalId,
+                                timestamp: new Date().toISOString(),
+                                session_id: sessionId,
                             }
                         ],
-                        loading: false,
-                        lastDebugMetrics: response.debug || null
                     }));
+
+                    await chatService.askQuestionStream({
+                        question,
+                        dataset_ids: datasetIds.length > 0 ? datasetIds : undefined,
+                        chatbot_id: chatbotId || undefined,
+                        history: historyContext,
+                        session_id: sessionId
+                    }, {
+                        onToken: (text) => {
+                            set((state) => ({
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? { ...msg, content: `${msg.content}${text}` }
+                                        : msg
+                                ),
+                            }));
+                        },
+                        onDone: (response) => {
+                            set((state) => ({
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? {
+                                            ...msg,
+                                            id: response.message_id || assistantLocalId,
+                                            content: response.answer || msg.content,
+                                            sources: response.sources,
+                                            session_id: sessionId,
+                                        }
+                                        : msg
+                                ),
+                                loading: false,
+                                lastDebugMetrics: response.debug || null,
+                            }));
+                        },
+                        onError: (detail) => {
+                            set((state) => ({
+                                loading: false,
+                                error: detail,
+                                messages: state.messages.map((msg) =>
+                                    msg.id === assistantLocalId
+                                        ? { ...msg, content: detail || 'Xin lỗi, tôi đã gặp sự cố khi xử lý yêu cầu của bạn.' }
+                                        : msg
+                                ),
+                            }));
+                        },
+                    });
                 } catch (error: unknown) {
                     const err = error as AxiosError<{ detail: string }>;
                     console.error('Chat error:', err);
@@ -210,6 +239,59 @@ const useChatStore = create<ChatState>()(
                         ]
                     }));
                 }
+            },
+
+            createBranch: async (newContent: string, messageIndex: number) => {
+                const { sessions, currentSessionId, messages } = get();
+                if (!currentSessionId) return;
+
+                const currentSession = sessions.find(s => s.id === currentSessionId);
+                const sessionName = currentSession ? currentSession.name : 'Cuộc trò chuyện';
+                const branchName = sessionName; // Giữ nguyên tên session gốc cho nhánh con
+
+                set({ loading: true, error: null });
+                try {
+                    // 1. Tạo session mới với parent_id và branch_message_index
+                    const newSession = await chatService.createSession(branchName, currentSessionId, messageIndex);
+                    const newSessionId = newSession.id;
+
+                    // 2. Clone các tin nhắn cũ từ đầu đến trước tin nhắn bị sửa
+                    const oldMessages = messages.slice(0, messageIndex);
+                    for (const msg of oldMessages) {
+                        await chatService.addMessage(newSessionId, msg.role as 'user' | 'assistant', msg.content);
+                    }
+
+                    // 3. Cập nhật danh sách session và chuyển sang session mới
+                    const updatedSessions = await chatService.getSessions();
+                    set({
+                        sessions: updatedSessions,
+                        currentSessionId: newSessionId,
+                        messages: oldMessages,
+                        loading: false
+                    });
+
+                    // 4. Gửi câu hỏi đã chỉnh sửa
+                    await get().sendMessage(newContent);
+                } catch (error) {
+                    console.error('Failed to create branch:', error);
+                    set({ loading: false, error: 'Không thể tạo nhánh mới' });
+                    throw error;
+                }
+            },
+
+            regenerateMessage: async (messageIndex: number) => {
+                const { messages } = get();
+                if (messageIndex <= 0) return;
+
+                const userMessage = messages[messageIndex - 1];
+                if (userMessage.role !== 'user') return;
+
+                // Xóa tin nhắn bị lỗi và các tin nhắn sau đó khỏi giao diện
+                const newMessages = messages.slice(0, messageIndex);
+                set({ messages: newMessages });
+
+                // Gửi lại câu hỏi
+                await get().sendMessage(userMessage.content);
             },
 
             selectDatasets: (ids: string[]) => set({ datasetIds: ids }),

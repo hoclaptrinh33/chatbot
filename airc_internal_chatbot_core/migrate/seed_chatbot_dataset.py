@@ -181,7 +181,7 @@ class CoreDataSeeder:
                 "description": "Chatbot hỗ trợ học tập, giải đáp thắc mắc về các môn học",
                 "icon": None,
                 "config": {
-                    "model": "models/gemini-2.5-flash",
+                    "model": "gemma-4-26b-qat",
                     "temperature": 0.7,
                     "max_tokens": 2048,
                     "system_prompt": "Bạn là trợ lý học tập thông minh. Hãy giúp học sinh giải đáp các câu hỏi về kiến thức một cách dễ hiểu, có ví dụ minh họa.",
@@ -205,7 +205,7 @@ class CoreDataSeeder:
                 "description": "Chatbot giải đáp các thắc mắc về quy định, thủ tục học vụ",
                 "icon": None,
                 "config": {
-                    "model": "models/gemini-2.5-flash",
+                    "model": "gemma-4-26b-qat",
                     "temperature": 0.5,
                     "max_tokens": 1024,
                     "system_prompt": "Bạn là trợ lý học vụ của trường. Hãy giải đáp các câu hỏi về quy định, thủ tục một cách chính xác và thân thiện.",
@@ -229,7 +229,7 @@ class CoreDataSeeder:
                 "description": "Chatbot dành riêng cho Admin, có quyền truy cập toàn bộ tài liệu",
                 "icon": None,
                 "config": {
-                    "model": "models/gemini-2.5-pro",
+                    "model": "qwen-3.6-35b",
                     "temperature": 0.3,
                     "max_tokens": 4096,
                     "system_prompt": "Bạn là trợ lý AI cao cấp cho quản trị viên. Hãy phân tích và trả lời chi tiết mọi câu hỏi.",
